@@ -2,7 +2,7 @@ package com.erp.rag.ragplatform.rag.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
-import java.util.UUID;
+
 
 /**
  * DTO representing a single query result document with metadata.
@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public class QueryResult {
 
-    private final UUID documentId;
+    private final Long documentId;
     private final String sourceTable;
     private final String sourceId;
     private final String fiscalPeriod;
@@ -25,7 +25,7 @@ public class QueryResult {
     private final Double relevanceScore;
     private final Object metadata;
 
-    public QueryResult(UUID documentId, String sourceTable, String sourceId,
+    public QueryResult(Long documentId, String sourceTable, String sourceId,
                      String fiscalPeriod, String title, String content,
                      Double relevanceScore, Object metadata) {
         this.documentId = documentId;
@@ -39,7 +39,7 @@ public class QueryResult {
     }
 
     // Getters
-    public UUID getDocumentId() {
+    public Long getDocumentId() {
         return documentId;
     }
 

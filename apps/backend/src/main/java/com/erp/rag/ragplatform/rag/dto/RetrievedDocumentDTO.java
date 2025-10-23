@@ -1,7 +1,6 @@
 package com.erp.rag.ragplatform.rag.dto;
 
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * DTO for retrieved document in RAG query response.
@@ -15,7 +14,7 @@ import java.util.UUID;
  */
 public class RetrievedDocumentDTO {
 
-    private UUID id;
+    private Long id;
     private String documentType;
     private String module;
     private Double relevanceScore;
@@ -25,7 +24,7 @@ public class RetrievedDocumentDTO {
     public RetrievedDocumentDTO() {
     }
 
-    public RetrievedDocumentDTO(UUID id, String documentType, String module, Double relevanceScore,
+    public RetrievedDocumentDTO(Long id, String documentType, String module, Double relevanceScore,
             String excerpt, Map<String, Object> metadata) {
         this.id = id;
         this.documentType = documentType;
@@ -36,11 +35,11 @@ public class RetrievedDocumentDTO {
     }
 
     // Getters and Setters
-    public UUID getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(UUID id) {
+    public void setId(Long id) {
         this.id = id;
     }
 

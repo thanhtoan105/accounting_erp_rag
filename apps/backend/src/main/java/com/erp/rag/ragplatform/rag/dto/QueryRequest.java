@@ -2,7 +2,6 @@ package com.erp.rag.ragplatform.rag.dto;
 
 import jakarta.validation.constraints.*;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * DTO for RAG query API requests.
@@ -17,7 +16,7 @@ import java.util.UUID;
 public class QueryRequest {
 
     @NotNull(message = "Company ID is required")
-    private UUID companyId;
+    private Long companyId;
 
     @NotBlank(message = "Query text is required")
     @Size(min = 3, max = 5000, message = "Query must be between 3 and 5000 characters")
@@ -33,18 +32,18 @@ public class QueryRequest {
     public QueryRequest() {
     }
 
-    public QueryRequest(UUID companyId, String query, String language) {
+    public QueryRequest(Long companyId, String query, String language) {
         this.companyId = companyId;
         this.query = query;
         this.language = language;
     }
 
     // Getters and Setters
-    public UUID getCompanyId() {
+    public Long getCompanyId() {
         return companyId;
     }
 
-    public void setCompanyId(UUID companyId) {
+    public void setCompanyId(Long companyId) {
         this.companyId = companyId;
     }
 

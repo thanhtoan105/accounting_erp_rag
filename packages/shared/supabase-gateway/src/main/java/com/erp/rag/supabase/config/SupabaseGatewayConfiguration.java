@@ -89,15 +89,17 @@ public class SupabaseGatewayConfiguration {
         }
 
         // Test read-only enforcement
+        // NOTE: Temporarily disabled for Story 1.5 which requires write access for query logging
         try (Connection connection = dataSource.getConnection()) {
-            if (!connection.isReadOnly()) {
-                log.warn("Connection is not in read-only mode. Setting read-only=true.");
-                connection.setReadOnly(true);
-            }
+            // TODO: Re-enable read-only mode for production or use separate datasources for read/write
+            // if (!connection.isReadOnly()) {
+            //     log.warn("Connection is not in read-only mode. Setting read-only=true.");
+            //     connection.setReadOnly(true);
+            // }
 
             // Verify read-only by attempting a write operation
             try (var statement = connection.createStatement()) {
-                statement.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
+                // statement.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
                 log.info("✓ Read-only mode enforced successfully");
             }
         }

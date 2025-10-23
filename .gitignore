@@ -218,9 +218,9 @@ dump.rdb
 .n8n/
 
 # BMAD workspace
-.bmad/
-.agents/
-.claude/
+# .bmad/
+# .agents/
+# .claude/
 .clinerules/
 .cursor/
 .gemini/
@@ -232,7 +232,7 @@ dump.rdb
 .github/
 .crush/
 .augment/
-bmad/
+# bmad/
 
 # Temporary files
 *.tmp

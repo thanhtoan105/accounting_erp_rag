@@ -43,7 +43,7 @@ public class ContextWindowManager {
      * @return grounded context string
      */
     public String buildGroundedContext(List<RetrievedDocumentDTO> retrievedDocuments,
-            List<UUID> documentIds, UUID companyId) {
+            List<Long> documentIds, Long companyId) {
         logger.debug("Building grounded context from {} documents", retrievedDocuments.size());
 
         StringBuilder context = new StringBuilder();
@@ -51,7 +51,7 @@ public class ContextWindowManager {
         int includedDocs = 0;
 
         for (int i = 0; i < Math.min(retrievedDocuments.size(), documentIds.size()); i++) {
-            UUID docId = documentIds.get(i);
+            Long docId = documentIds.get(i);
             
             // Fetch full document text
             var docOptional = vectorDocumentRepository.findByIdAndCompanyId(docId, companyId);
@@ -109,10 +109,10 @@ public class ContextWindowManager {
      * @param companyId   the company UUID
      * @return list of token counts corresponding to each document
      */
-    public List<Integer> calculateTokensPerDocument(List<UUID> documentIds, UUID companyId) {
+    public List<Integer> calculateTokensPerDocument(List<Long> documentIds, Long companyId) {
         List<Integer> tokens = new ArrayList<>();
 
-        for (UUID docId : documentIds) {
+        for (Long docId : documentIds) {
             var docOptional = vectorDocumentRepository.findByIdAndCompanyId(docId, companyId);
             if (docOptional.isPresent()) {
                 String docText = extractContentText(docOptional.get());

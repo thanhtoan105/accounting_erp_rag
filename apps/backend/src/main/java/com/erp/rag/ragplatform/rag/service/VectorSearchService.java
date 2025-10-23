@@ -47,7 +47,7 @@ public class VectorSearchService {
      * @param filters        optional metadata filters
      * @return list of retrieved documents with relevance scores
      */
-    public List<RetrievedDocumentDTO> search(UUID companyId, String queryEmbedding,
+    public List<RetrievedDocumentDTO> search(Long companyId, String queryEmbedding,
             Map<String, Object> filters) {
         logger.debug("Executing vector search for company: {}, filters: {}", companyId, filters);
 

@@ -49,20 +49,27 @@ public class QueryLoggerService {
      * @return the created RagQuery entity
      */
     @Transactional
-    public RagQuery logQueryStart(UUID companyId, UUID userId, String queryText,
+    public RagQuery logQueryStart(Long companyId, UUID userId, String queryText,
             String queryEmbedding, String language) {
         logger.debug("Logging query start for company: {}, user: {}", companyId, userId);
 
         RagQuery query = new RagQuery();
         query.setCompanyId(companyId);
-        query.setUserId(userId);
+        // Use provided userId or default test UUID if null
+        query.setUserId(userId != null ? userId : UUID.fromString("00000000-0000-0000-0000-000000000000"));
         query.setQueryText(queryText);
-        query.setQueryEmbedding(queryEmbedding);
+        // Don't set queryEmbedding here - will update it separately with native SQL
         query.setLanguage(language);
         query.setStatus("pending");
         query.setCreatedAt(OffsetDateTime.now());
 
         query = ragQueryRepository.save(query);
+        
+        // Update query_embedding using native SQL with vector casting
+        if (queryEmbedding != null) {
+            ragQueryRepository.updateQueryEmbedding(query.getId(), queryEmbedding);
+        }
+        
         logger.info("Query logged with ID: {}", query.getId());
 
         return query;
@@ -78,7 +85,7 @@ public class QueryLoggerService {
      * @param tokensPerDocument     tokens used per document
      */
     @Transactional
-    public void logQueryComplete(UUID queryId, Integer retrievalLatencyMs,
+    public void logQueryComplete(Long queryId, Integer retrievalLatencyMs,
             Integer totalLatencyMs, List<RetrievedDocumentDTO> retrievedDocuments,
             List<Integer> tokensPerDocument) {
         logger.debug("Logging query completion for query ID: {}", queryId);
@@ -120,7 +127,7 @@ public class QueryLoggerService {
      * @param errorMessage the error message
      */
     @Transactional
-    public void logQueryError(UUID queryId, String errorMessage) {
+    public void logQueryError(Long queryId, String errorMessage) {
         logger.error("Logging query error for query ID: {}, error: {}", queryId, errorMessage);
 
         RagQuery query = ragQueryRepository.findById(queryId)

@@ -106,7 +106,7 @@ public class RagQueryService {
 
             // Step 4: Build grounded context
             long contextStart = System.currentTimeMillis();
-            List<UUID> documentIds = retrievedDocuments.stream()
+            List<Long> documentIds = retrievedDocuments.stream()
                     .map(RetrievedDocumentDTO::getId)
                     .collect(Collectors.toList());
 

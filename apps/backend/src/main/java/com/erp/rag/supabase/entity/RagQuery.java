@@ -26,12 +26,12 @@ import java.util.UUID;
 public class RagQuery {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private UUID id;
+    private Long id;
 
     @Column(name = "company_id", nullable = false)
-    private UUID companyId;
+    private Long companyId;
 
     @Column(name = "user_id", nullable = true)
     private UUID userId;
@@ -39,7 +39,7 @@ public class RagQuery {
     @Column(name = "query_text", columnDefinition = "text", nullable = false)
     private String queryText;
 
-    @Column(name = "query_embedding", columnDefinition = "vector(1536)")
+    @Column(name = "query_embedding", columnDefinition = "vector(1536)", insertable = false, updatable = false)
     private String queryEmbedding;
 
     @Column(name = "language", nullable = false, length = 10)
@@ -74,19 +74,19 @@ public class RagQuery {
     }
 
     // Getters and Setters
-    public UUID getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(UUID id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
-    public UUID getCompanyId() {
+    public Long getCompanyId() {
         return companyId;
     }
 
-    public void setCompanyId(UUID companyId) {
+    public void setCompanyId(Long companyId) {
         this.companyId = companyId;
     }
 

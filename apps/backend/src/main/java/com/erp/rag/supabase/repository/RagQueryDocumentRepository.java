@@ -7,7 +7,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Repository for {@link RagQueryDocument} junction table operations.
@@ -20,37 +19,37 @@ import java.util.UUID;
  * @since 1.0.0
  */
 @Repository
-public interface RagQueryDocumentRepository extends JpaRepository<RagQueryDocument, UUID> {
+public interface RagQueryDocumentRepository extends JpaRepository<RagQueryDocument, Long> {
 
     /**
      * Find all documents retrieved for a specific query, ordered by rank.
      *
-     * @param queryId the query UUID
+     * @param queryId the query Long ID
      * @return list of query documents ordered by rank (top-ranked first)
      */
     @Query(value = "SELECT * FROM accounting.rag_query_documents " +
             "WHERE query_id = :queryId " +
             "ORDER BY rank ASC", nativeQuery = true)
-    List<RagQueryDocument> findByQueryIdOrderByRank(@Param("queryId") UUID queryId);
+    List<RagQueryDocument> findByQueryIdOrderByRank(@Param("queryId") Long queryId);
 
     /**
      * Find all queries that retrieved a specific document.
      *
-     * @param documentVectorId the document vector UUID
+     * @param documentVectorId the document vector Long ID
      * @return list of query documents
      */
     @Query(value = "SELECT * FROM accounting.rag_query_documents " +
             "WHERE document_vector_id = :documentVectorId " +
             "ORDER BY created_at DESC", nativeQuery = true)
-    List<RagQueryDocument> findByDocumentVectorId(@Param("documentVectorId") UUID documentVectorId);
+    List<RagQueryDocument> findByDocumentVectorId(@Param("documentVectorId") Long documentVectorId);
 
     /**
      * Count documents retrieved for a query.
      *
-     * @param queryId the query UUID
+     * @param queryId the query Long ID
      * @return count of documents
      */
     @Query(value = "SELECT COUNT(*) FROM accounting.rag_query_documents " +
             "WHERE query_id = :queryId", nativeQuery = true)
-    long countByQueryId(@Param("queryId") UUID queryId);
+    long countByQueryId(@Param("queryId") Long queryId);
 }

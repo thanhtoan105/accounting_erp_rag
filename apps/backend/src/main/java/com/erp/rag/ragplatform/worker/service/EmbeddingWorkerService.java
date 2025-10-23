@@ -268,16 +268,20 @@ public class EmbeddingWorkerService {
         // Convert embedding to string format for PostgreSQL vector type
         String embeddingStr = floatArrayToVectorString(embedding);
 
+        // TODO: Proper UUID to Long mapping needed for production
+        // For now, using hashCode as placeholder - should use a proper ID mapping service
+        Long companyIdLong = Math.abs((long) companyId.hashCode());
+        Long sourceIdLong = Math.abs((long) doc.getId().hashCode());
+
         // Create VectorDocument entity
         VectorDocument vectorDoc = new VectorDocument(
-                companyId,
-                doc.getId(),
+                companyIdLong,
                 doc.getSourceTable(),
-                doc.getId(),
+                sourceIdLong,
+                doc.getDocumentType(), // content_type
+                contentText, // content_text
                 embeddingStr,
                 metadata);
-
-        vectorDoc.setFiscalPeriod(doc.getFiscalPeriod());
 
         // Save (JPA will handle ON CONFLICT via merge)
         vectorRepository.save(vectorDoc);

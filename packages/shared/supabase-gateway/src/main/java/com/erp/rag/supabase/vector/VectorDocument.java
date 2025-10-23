@@ -25,24 +25,24 @@ import java.util.UUID;
 public class VectorDocument {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private UUID id;
+    private Long id;
 
     @Column(name = "company_id", nullable = false)
-    private UUID companyId;
-
-    @Column(name = "document_id", nullable = false)
-    private UUID documentId;
+    private Long companyId;
 
     @Column(name = "source_table", nullable = false)
     private String sourceTable;
 
     @Column(name = "source_id", nullable = false)
-    private UUID sourceId;
+    private Long sourceId;
 
-    @Column(name = "fiscal_period")
-    private String fiscalPeriod;
+    @Column(name = "content_type", nullable = false, length = 50)
+    private String contentType;
+
+    @Column(name = "content_text", nullable = false, columnDefinition = "text")
+    private String contentText;
 
     @Column(name = "content_tsv", columnDefinition = "tsvector")
     private String contentTsv; // TSVECTOR stored as text for JDBC compatibility
@@ -67,40 +67,49 @@ public class VectorDocument {
         // Default constructor required by Spring Data JDBC
     }
 
-    public VectorDocument(UUID companyId, UUID documentId, String sourceTable, UUID sourceId,
-            String embedding, JsonNode metadata) {
+    public VectorDocument(Long companyId, String sourceTable, Long sourceId,
+            String contentType, String contentText, String embedding, JsonNode metadata) {
         this.companyId = Objects.requireNonNull(companyId, "companyId must not be null");
-        this.documentId = Objects.requireNonNull(documentId, "documentId must not be null");
         this.sourceTable = Objects.requireNonNull(sourceTable, "sourceTable must not be null");
         this.sourceId = Objects.requireNonNull(sourceId, "sourceId must not be null");
+        this.contentType = Objects.requireNonNull(contentType, "contentType must not be null");
+        this.contentText = Objects.requireNonNull(contentText, "contentText must not be null");
         this.embedding = Objects.requireNonNull(embedding, "embedding must not be null");
         this.metadata = metadata != null ? metadata : null;
     }
 
     // Getters and Setters
 
-    public UUID getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(UUID id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
-    public UUID getCompanyId() {
+    public Long getCompanyId() {
         return companyId;
     }
 
-    public void setCompanyId(UUID companyId) {
+    public void setCompanyId(Long companyId) {
         this.companyId = companyId;
     }
 
-    public UUID getDocumentId() {
-        return documentId;
+    public String getContentType() {
+        return contentType;
     }
 
-    public void setDocumentId(UUID documentId) {
-        this.documentId = documentId;
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
+    public String getContentText() {
+        return contentText;
+    }
+
+    public void setContentText(String contentText) {
+        this.contentText = contentText;
     }
 
     public String getSourceTable() {
@@ -111,21 +120,15 @@ public class VectorDocument {
         this.sourceTable = sourceTable;
     }
 
-    public UUID getSourceId() {
+    public Long getSourceId() {
         return sourceId;
     }
 
-    public void setSourceId(UUID sourceId) {
+    public void setSourceId(Long sourceId) {
         this.sourceId = sourceId;
     }
 
-    public String getFiscalPeriod() {
-        return fiscalPeriod;
-    }
 
-    public void setFiscalPeriod(String fiscalPeriod) {
-        this.fiscalPeriod = fiscalPeriod;
-    }
 
     public String getContentTsv() {
         return contentTsv;
@@ -211,10 +214,9 @@ public class VectorDocument {
         return "VectorDocument{" +
                 "id=" + id +
                 ", companyId=" + companyId +
-                ", documentId=" + documentId +
                 ", sourceTable='" + sourceTable + '\'' +
                 ", sourceId=" + sourceId +
-                ", fiscalPeriod='" + fiscalPeriod + '\'' +
+                ", contentType='" + contentType + '\'' +
                 ", hasEmbedding=" + (embedding != null) +
                 ", metadata=" + metadata +
                 ", createdAt=" + createdAt +

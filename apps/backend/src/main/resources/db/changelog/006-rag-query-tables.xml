@@ -11,15 +11,21 @@
     -->
 
     <changeSet id="006-create-rag-queries-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists schemaName="accounting" tableName="rag_queries"/>
+            </not>
+        </preConditions>
+        <comment>Skipped if table already exists (created in earlier migration)</comment>
         <createTable tableName="rag_queries" schemaName="accounting">
-            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="id" type="BIGSERIAL">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="company_id" type="UUID">
+            <column name="company_id" type="BIGINT">
                 <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
-                <constraints nullable="true"/>
+                <constraints nullable="false"/>
             </column>
             <column name="query_text" type="TEXT">
                 <constraints nullable="false"/>
@@ -56,14 +62,6 @@
             </column>
         </createTable>
 
-        <addCheckConstraint tableName="rag_queries" schemaName="accounting"
-                            constraintName="rag_queries_language_check"
-                            checkCondition="language IN ('vi', 'en')"/>
-
-        <addCheckConstraint tableName="rag_queries" schemaName="accounting"
-                            constraintName="rag_queries_status_check"
-                            checkCondition="status IN ('pending', 'streaming', 'complete', 'error')"/>
-
         <createIndex tableName="rag_queries" schemaName="accounting"
                      indexName="idx_rag_queries_company_user">
             <column name="company_id"/>
@@ -77,12 +75,27 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="006-add-rag-queries-constraints" author="dev-agent">
+        <sql>
+            ALTER TABLE accounting.rag_queries 
+            ADD CONSTRAINT rag_queries_language_check CHECK (language IN ('vi', 'en'));
+            
+            ALTER TABLE accounting.rag_queries 
+            ADD CONSTRAINT rag_queries_status_check CHECK (status IN ('pending', 'streaming', 'complete', 'error'));
+        </sql>
+    </changeSet>
+
     <changeSet id="006-create-rag-query-documents-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists schemaName="accounting" tableName="rag_query_documents"/>
+            </not>
+        </preConditions>
         <createTable tableName="rag_query_documents" schemaName="accounting">
-            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="id" type="BIGSERIAL">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="query_id" type="UUID">
+            <column name="query_id" type="BIGINT">
                 <constraints nullable="false"
                              foreignKeyName="fk_rag_query_documents_query"
                              referencedTableSchemaName="accounting"
@@ -90,7 +103,7 @@
                              referencedColumnNames="id"
                              deleteCascade="true"/>
             </column>
-            <column name="document_vector_id" type="UUID">
+            <column name="document_vector_id" type="BIGINT">
                 <constraints nullable="false"
                              foreignKeyName="fk_rag_query_documents_vector"
                              referencedTableSchemaName="accounting"
@@ -115,14 +128,6 @@
             </column>
         </createTable>
 
-        <addCheckConstraint tableName="rag_query_documents" schemaName="accounting"
-                            constraintName="rag_query_documents_relevance_check"
-                            checkCondition="relevance_score >= 0.0 AND relevance_score <= 1.0"/>
-
-        <addUniqueConstraint tableName="rag_query_documents" schemaName="accounting"
-                             columnNames="query_id, document_vector_id"
-                             constraintName="uq_rag_query_documents_query_doc"/>
-
         <createIndex tableName="rag_query_documents" schemaName="accounting"
                      indexName="idx_rag_query_documents_query">
             <column name="query_id"/>
@@ -132,6 +137,16 @@
                      indexName="idx_rag_query_documents_document">
             <column name="document_vector_id"/>
         </createIndex>
+    </changeSet>
+
+    <changeSet id="006-add-rag-query-documents-constraints" author="dev-agent">
+        <sql><![CDATA[
+            ALTER TABLE accounting.rag_query_documents 
+            ADD CONSTRAINT rag_query_documents_relevance_check CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0);
+            
+            ALTER TABLE accounting.rag_query_documents 
+            ADD CONSTRAINT uq_rag_query_documents_query_doc UNIQUE (query_id, document_vector_id);
+        ]]></sql>
     </changeSet>
 
 </databaseChangeLog>

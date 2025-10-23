@@ -31,15 +31,15 @@ import java.util.UUID;
 public class RagQueryDocument {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private UUID id;
+    private Long id;
 
     @Column(name = "query_id", nullable = false)
-    private UUID queryId;
+    private Long queryId;
 
     @Column(name = "document_vector_id", nullable = false)
-    private UUID documentVectorId;
+    private Long documentVectorId;
 
     @Column(name = "rank", nullable = false)
     private Integer rank;
@@ -61,27 +61,27 @@ public class RagQueryDocument {
     }
 
     // Getters and Setters
-    public UUID getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(UUID id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
-    public UUID getQueryId() {
+    public Long getQueryId() {
         return queryId;
     }
 
-    public void setQueryId(UUID queryId) {
+    public void setQueryId(Long queryId) {
         this.queryId = queryId;
     }
 
-    public UUID getDocumentVectorId() {
+    public Long getDocumentVectorId() {
         return documentVectorId;
     }
 
-    public void setDocumentVectorId(UUID documentVectorId) {
+    public void setDocumentVectorId(Long documentVectorId) {
         this.documentVectorId = documentVectorId;
     }
 

@@ -1,7 +1,6 @@
 package com.erp.rag.ragplatform.rag.dto;
 
 import java.util.List;
-import java.util.UUID;
 
 /**
  * DTO for RAG query API response.
@@ -15,7 +14,7 @@ import java.util.UUID;
  */
 public class QueryResponse {
 
-    private UUID queryId;
+    private Long queryId;
     private List<RetrievedDocumentDTO> retrievedDocuments;
     private String groundedContext;
     private LatencyMetrics latencyMs;
@@ -23,7 +22,7 @@ public class QueryResponse {
     public QueryResponse() {
     }
 
-    public QueryResponse(UUID queryId, List<RetrievedDocumentDTO> retrievedDocuments,
+    public QueryResponse(Long queryId, List<RetrievedDocumentDTO> retrievedDocuments,
             String groundedContext, LatencyMetrics latencyMs) {
         this.queryId = queryId;
         this.retrievedDocuments = retrievedDocuments;
@@ -32,11 +31,11 @@ public class QueryResponse {
     }
 
     // Getters and Setters
-    public UUID getQueryId() {
+    public Long getQueryId() {
         return queryId;
     }
 
-    public void setQueryId(UUID queryId) {
+    public void setQueryId(Long queryId) {
         this.queryId = queryId;
     }
 

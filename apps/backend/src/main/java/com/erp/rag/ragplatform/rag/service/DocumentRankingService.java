@@ -51,13 +51,19 @@ public class DocumentRankingService {
             // Calculate distance-based relevance score (lower distance = higher relevance)
             Double relevanceScore = calculateRelevanceScore(doc);
 
+            // Extract fiscal_period from metadata if available
+            String fiscalPeriod = null;
+            if (doc.getMetadata() != null && doc.getMetadata().has("fiscal_period")) {
+                fiscalPeriod = doc.getMetadata().get("fiscal_period").asText();
+            }
+
             QueryResult result = new QueryResult(
                     doc.getId(),
                     doc.getSourceTable(),
                     doc.getSourceId() != null ? doc.getSourceId().toString() : null,
-                    doc.getFiscalPeriod(),
+                    fiscalPeriod,
                     extractTitle(doc),
-                    doc.getContentTsv(),
+                    doc.getContentText(), // Use contentText instead of contentTsv
                     relevanceScore,
                     doc.getMetadata()
             );

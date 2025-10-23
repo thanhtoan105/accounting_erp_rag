@@ -8,7 +8,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Repository for {@link VectorDocument} with tenant-scoped queries and vector
@@ -24,7 +23,7 @@ import java.util.UUID;
  * @since 1.0.0
  */
 @Repository
-public interface VectorDocumentRepository extends JpaRepository<VectorDocument, UUID> {
+public interface VectorDocumentRepository extends JpaRepository<VectorDocument, Long> {
 
     /**
      * Find all non-deleted vector documents for a specific company.
@@ -35,7 +34,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
     @Query(value = "SELECT * FROM accounting.vector_documents " +
             "WHERE company_id = :companyId AND deleted_at IS NULL " +
             "ORDER BY created_at DESC", nativeQuery = true)
-    List<VectorDocument> findByCompanyId(@Param("companyId") UUID companyId);
+    List<VectorDocument> findByCompanyId(@Param("companyId") Long companyId);
 
     /**
      * Find a non-deleted vector document by ID and company.
@@ -46,7 +45,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
      */
     @Query(value = "SELECT * FROM accounting.vector_documents " +
             "WHERE id = :id AND company_id = :companyId AND deleted_at IS NULL", nativeQuery = true)
-    Optional<VectorDocument> findByIdAndCompanyId(@Param("id") UUID id, @Param("companyId") UUID companyId);
+    Optional<VectorDocument> findByIdAndCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 
     /**
      * Find vector documents by source table and source ID for a specific company.
@@ -61,9 +60,9 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
             "AND source_table = :sourceTable " +
             "AND source_id = :sourceId " +
             "AND deleted_at IS NULL", nativeQuery = true)
-    List<VectorDocument> findBySource(@Param("companyId") UUID companyId,
+    List<VectorDocument> findBySource(@Param("companyId") Long companyId,
             @Param("sourceTable") String sourceTable,
-            @Param("sourceId") UUID sourceId);
+            @Param("sourceId") Long sourceId);
 
     /**
      * Find vector documents by fiscal period for a specific company.
@@ -77,7 +76,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
             "AND fiscal_period = :fiscalPeriod " +
             "AND deleted_at IS NULL " +
             "ORDER BY created_at DESC", nativeQuery = true)
-    List<VectorDocument> findByFiscalPeriod(@Param("companyId") UUID companyId,
+    List<VectorDocument> findByFiscalPeriod(@Param("companyId") Long companyId,
             @Param("fiscalPeriod") String fiscalPeriod);
 
     /**
@@ -96,7 +95,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
             "WHERE company_id = :companyId AND deleted_at IS NULL " +
             "ORDER BY distance ASC " +
             "LIMIT :limit", nativeQuery = true)
-    List<VectorDocument> findSimilarVectors(@Param("companyId") UUID companyId,
+    List<VectorDocument> findSimilarVectors(@Param("companyId") Long companyId,
             @Param("queryEmbedding") String queryEmbedding,
             @Param("limit") int limit);
 
@@ -118,7 +117,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
             "AND jsonb_path_exists(metadata, CAST(:metadataFilter AS jsonpath)) " +
             "ORDER BY distance ASC " +
             "LIMIT :limit", nativeQuery = true)
-    List<VectorDocument> findSimilarVectorsWithMetadata(@Param("companyId") UUID companyId,
+    List<VectorDocument> findSimilarVectorsWithMetadata(@Param("companyId") Long companyId,
             @Param("queryEmbedding") String queryEmbedding,
             @Param("metadataFilter") String metadataFilter,
             @Param("limit") int limit);
@@ -131,7 +130,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
      */
     @Query(value = "SELECT COUNT(*) FROM accounting.vector_documents " +
             "WHERE company_id = :companyId AND deleted_at IS NULL", nativeQuery = true)
-    long countByCompanyId(@Param("companyId") UUID companyId);
+    long countByCompanyId(@Param("companyId") Long companyId);
 
     /**
      * Soft-delete a vector document.
@@ -144,7 +143,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
     @Query(value = "UPDATE accounting.vector_documents " +
             "SET deleted_at = now(), updated_at = now() " +
             "WHERE id = :id AND company_id = :companyId AND deleted_at IS NULL", nativeQuery = true)
-    int softDelete(@Param("id") UUID id, @Param("companyId") UUID companyId);
+    int softDelete(@Param("id") Long id, @Param("companyId") Long companyId);
 
     /**
      * Delete all vector documents for a specific source (hard delete for cleanup).
@@ -158,7 +157,7 @@ public interface VectorDocumentRepository extends JpaRepository<VectorDocument, 
             "WHERE company_id = :companyId " +
             "AND source_table = :sourceTable " +
             "AND source_id = :sourceId", nativeQuery = true)
-    void deleteBySource(@Param("companyId") UUID companyId,
+    void deleteBySource(@Param("companyId") Long companyId,
             @Param("sourceTable") String sourceTable,
-            @Param("sourceId") UUID sourceId);
+            @Param("sourceId") Long sourceId);
 }
