@@ -1,0 +1,253 @@
+package com.erp.rag.ragplatform.rag;
+
+import com.erp.rag.ragplatform.rag.controller.RagQueryController;
+import com.erp.rag.ragplatform.rag.dto.*;
+import com.erp.rag.ragplatform.rag.service.RagQueryService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.*;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * Unit tests for RAG Query Controller.
+ * <p>
+ * Story 1.5-UNIT-001 – REST endpoint validation, request/response contracts.
+ * Priority: P0 (Critical - revenue-impacting API)
+ * </p>
+ *
+ * @author dev-agent
+ * @since 1.0.0
+ */
+@WebMvcTest(RagQueryController.class)
+@DisplayName("Story 1.5-UNIT-001: RAG Query Controller")
+public class RagQueryControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private RagQueryService ragQueryService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private UUID testCompanyId;
+    private QueryRequest.QueryFilters testFilters;
+
+    @BeforeEach
+    void setUp() {
+        testCompanyId = UUID.randomUUID();
+        testFilters = new QueryRequest.QueryFilters();
+        testFilters.setModule("ar");
+        testFilters.setFiscalPeriod("2024-01");
+    }
+
+    @Test
+    void testProcessQuery_ValidRequest_ShouldReturnAccepted() throws Exception {
+        // Given
+        QueryRequest request = new QueryRequest(
+                testCompanyId,
+                "What are the outstanding invoices?",
+                "en",
+                testFilters
+        );
+
+        // Mock successful query processing
+        UUID expectedQueryId = UUID.randomUUID();
+        when(ragQueryService.processQuery(any(QueryRequest.class)))
+                .thenReturn(expectedQueryId);
+
+        // When
+        MockMvcResult result = mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        );
+
+        // Then
+        result.andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.queryId").value(expectedQueryId.toString()))
+                .andExpect(jsonPath("$.streamUrl").value("/api/v1/rag/query/" + expectedQueryId + "/events"))
+                .andExpect(jsonPath("$.status").value(202))
+                .andExpect(jsonPath("$.message").value("Query accepted for processing"));
+    }
+
+    @Test
+    void testProcessQuery_VietnameseQuery_ShouldProcessCorrectly() throws Exception {
+        // Given
+        QueryRequest vietnameseRequest = new QueryRequest(
+                testCompanyId,
+                "Khách hàng nào còn nợ?",
+                "vi",
+                null
+        );
+
+        UUID expectedQueryId = UUID.randomUUID();
+        when(ragQueryService.processQuery(any(QueryRequest.class)))
+                .thenReturn(expectedQueryId);
+
+        // When
+        MockMvcResult result = mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(vietnameseRequest))
+        );
+
+        // Then
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.queryId").exists());
+    }
+
+    @Test
+    void testProcessQuery_EmptyQuery_ShouldReturnBadRequest() throws Exception {
+        // Given
+        QueryRequest invalidRequest = new QueryRequest(
+                testCompanyId,
+                "",
+                "en",
+                null
+        );
+
+        // When & Then
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest))
+        )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testProcessQuery_NullCompanyId_ShouldReturnBadRequest() throws Exception {
+        // Given
+        QueryRequest invalidRequest = new QueryRequest(
+                null,
+                "Test query",
+                "en",
+                null
+        );
+
+        // When & Then
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest))
+        )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testProcessQuery_InvalidLanguage_ShouldReturnBadRequest() throws Exception {
+        // Given
+        QueryRequest invalidRequest = new QueryRequest(
+                testCompanyId,
+                "Test query",
+                "invalid",
+                null
+        );
+
+        // When & Then
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest))
+        )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testProcessQuery_QueryTooLong_ShouldReturnBadRequest() throws Exception {
+        // Given
+        String longQuery = "a".repeat(2100); // Exceeds 2000 character limit
+        QueryRequest invalidRequest = new QueryRequest(
+                testCompanyId,
+                longQuery,
+                "en",
+                null
+        );
+
+        // When & Then
+        mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest))
+        )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testGetQueryEvents_ValidQueryId_ShouldReturnSseEmitter() throws Exception {
+        // Given
+        UUID queryId = UUID.randomUUID();
+
+        // When
+        MockMvcResult result = mockMvc.perform(
+                MockMvcRequestBuilders.get("/api/v1/rag/query/{queryId}/events", queryId)
+        );
+
+        // Then
+        result.andExpect(status().isOk());
+    }
+
+    @Test
+    void testHealth_ShouldReturnHealthyStatus() throws Exception {
+        // When & Then
+        mockMvc.perform(
+                MockMvcRequestBuilders.get("/api/v1/rag/health")
+        )
+                .andExpect(status().isOk())
+                .andExpect(content().string("RAG Query Service: Healthy"));
+    }
+
+    @Test
+    void testProcessQuery_WithAllFilters_ShouldProcessCorrectly() throws Exception {
+        // Given
+        QueryRequest.QueryFilters fullFilters = new QueryRequest.QueryFilters();
+        fullFilters.setModule("ar");
+        fullFilters.setFiscalPeriod("2024-01");
+        fullFilters.setDocumentType("invoice");
+        fullFilters.setMinConfidence(0.8);
+
+        QueryRequest.DateRangeFilter dateRange = new QueryRequest.DateRangeFilter();
+        dateRange.setStartDate("2024-01-01");
+        dateRange.setEndDate("2024-01-31");
+        fullFilters.setDateRange(dateRange);
+
+        QueryRequest request = new QueryRequest(
+                testCompanyId,
+                "Test query",
+                "en",
+                fullFilters
+        );
+
+        UUID expectedQueryId = UUID.randomUUID();
+        when(ragQueryService.processQuery(any(QueryRequest.class)))
+                .thenReturn(expectedQueryId);
+
+        // When
+        MockMvcResult result = mockMvc.perform(
+                MockMvcRequestBuilders.post("/api/v1/rag/query")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        );
+
+        // Then
+        result.andExpect(status().isOk())
+                .andExpect(jsonPath("$.queryId").exists())
+                .andExpect(jsonPath("$.streamUrl").exists());
+    }
+}

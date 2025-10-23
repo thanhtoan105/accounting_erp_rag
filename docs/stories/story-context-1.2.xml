@@ -1,0 +1,301 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.2</storyId>
+    <title>PII Masking and Data Anonymization</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-18</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.2.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>data engineer implementing the Core RAG foundation</asA>
+    <iWant>implement PII (Personally Identifiable Information) detection and masking for all data extracted from ERP before indexing</iWant>
+    <soThat>customer names, tax IDs, phone numbers, emails, and addresses are anonymized or tokenized for non-production environments while maintaining referential integrity and compliance with Vietnam Circular 200/2014/TT-BTC audit requirements</soThat>
+    <tasks>
+      - Identify and document all PII fields across ERP schema (customers, vendors, invoices, bills, journal entries tables)
+      - Implement deterministic masking utility module in packages/shared/pii-masking with SHA-256 + salt hashing
+      - Supabase Vault setup for encrypted salt storage (1 global + 2 company-specific salts)
+      - Salt integration in PiiMaskingService.getSalt() with salt_version tracking
+      - Basic unmask function unmask_pii() with service_role restriction and pii_unmask_audit table
+      - Integrate PII masking into embedding-worker pipeline before text concatenation
+      - Build automated PII scanner with Vietnamese regex patterns for validation
+      - Create compliance documentation (pii-masking-compliance.md, security-approach.md)
+      - Test suite with 100+ sample records, performance benchmarks (<100ms per document)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">
+      PII fields identified across all ERP tables (name, tax_id, phone, email, address) with comprehensive mapping stored in project documentation; masking rules implemented for each PII field type using deterministic hashing for customer/vendor IDs to allow joins without exposing PII
+    </criterion>
+    <criterion id="AC2">
+      Tokenization strategy implemented for linking records without exposing PII, using mask patterns (names → "Customer_12345", tax_ids → "TAX_*****1234") with original → masked mapping stored in protected Supabase schema (pii_mask_map table) for production audit trail
+    </criterion>
+    <criterion id="AC3">
+      Automated validation ensures no PII appears in indexed vector embeddings, LLM prompts, or logs; automated scan confirms vector tables, logs, and prompts contain no raw names/tax IDs/emails with zero PII leakage tolerance
+    </criterion>
+    <criterion id="AC4">
+      Compliance documentation created listing all PII fields and masking approach, aligned with Vietnam Circular 200 audit retention requirements (10 years minimum); test suite validates masking on 100+ sample records with performance impact measured (masking adds < 100ms per document)
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification: Core RAG Pipeline and Infrastructure (Foundation)</title>
+        <section>AC3 – PII Protection</section>
+        <snippet>Embedding pipeline masks/tokens all PII fields for non-production indexing; automated scan confirms vector tables, logs, and LLM prompts contain no PII. Data model: pii_mask_map table stores deterministic PII masking with fields: id, source_table, source_id, field, masked_value, hash, created_at.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification: Core RAG Pipeline and Infrastructure (Foundation)</title>
+        <section>Services and Modules</section>
+        <snippet>embedding-worker (Async job, Spring Boot worker profile): Batch extraction of ERP documents, PII masking, embedding generation, pgvector writes, error retries. Owner: Data Engineer.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>17. Security</section>
+        <snippet>Security-by-design: sanitize PII before sending prompts to third-party LLM providers (use document IDs/references only, not raw data), encrypt data at rest (AES-256), maintain TLS 1.3 for all communications.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>3. Data Architecture</section>
+        <snippet>Store pii_mask_map in protected Supabase schema with Row Level Security (RLS) policies restricting access to ADMIN role only; enforce append-only constraints (no DELETE/UPDATE) for audit trail recovery.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>NFR-4 Security and Data Protection</section>
+        <snippet>Encryption at rest (AES-256), no PII transmitted to third-party LLM providers. PII handling: sanitize PII before sending prompts to LLM providers.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>NFR-5 Compliance and Audit</section>
+        <snippet>Vietnam Circular 200/2014/TT-BTC adherence, 10-year audit retention, immutable audit trails. PII masking must preserve auditability—original values recoverable for compliance investigations via secure pii_mask_map lookup.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>E1-S2 PII Masking and Data Anonymization</section>
+        <snippet>Use deterministic hashing for customer/vendor IDs (allows joins without PII). Mask patterns: names → "Customer_12345", tax_ids → "TAX_*****1234". Store original → masked mapping in secure vault for production audit trail.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-1.1.md</path>
+        <title>Story 1.1: Establish Read-Only ERP Database Access</title>
+        <section>Completion Notes</section>
+        <snippet>Supabase read-only connection established with HikariCP pool (min=2, max=10), connection pooling with exponential backoff retry logic implemented, read-only enforcement validated, Spring Boot application successfully started with Supabase profile. Observability stack configured with Spring Boot Actuator endpoints.</snippet>
+      </doc>
+      <doc>
+        <path>docs/retrospectives/story-1.1-retro-2025-10-18.md</path>
+        <title>Retrospective: Story 1.1</title>
+        <section>Action Items</section>
+        <snippet>Action items: (1) Document explicit AC evidence for each criterion, (2) Complete schema documentation export for 60+ tables before E1-S4, (3) Establish performance baselines early. Key takeaway: Database foundation solid, need explicit AC evidence documentation.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>packages/shared/supabase-gateway/src/main/resources/application-supabase.yml</path>
+        <kind>configuration</kind>
+        <symbol>HikariCP DataSource</symbol>
+        <lines>N/A</lines>
+        <reason>Existing Supabase connection configuration from Story 1.1; PII masking service will use same gateway for schema queries and pii_mask_map table access</reason>
+      </artifact>
+      <artifact>
+        <path>packages/shared/supabase-gateway</path>
+        <kind>module</kind>
+        <symbol>SupabaseGateway</symbol>
+        <lines>N/A</lines>
+        <reason>Shared module for Supabase connectivity established in Story 1.1; PiiMaskingService will depend on this gateway for vault queries and pii_mask_map operations</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend</path>
+        <kind>module</kind>
+        <symbol>Spring Boot Application</symbol>
+        <lines>N/A</lines>
+        <reason>Main application entry point; embedding-worker will be implemented as async job profile within this monolith</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <java>
+        <dependency name="Spring Boot" version="3.2.5" />
+        <dependency name="HikariCP" version="latest" />
+        <dependency name="PostgreSQL JDBC Driver" version="latest" />
+        <dependency name="Liquibase" version="4.27.0" />
+        <dependency name="JUnit 5" version="5.10.2" />
+        <dependency name="Testcontainers" version="1.19.6" />
+      </java>
+      <database>
+        <dependency name="Supabase PostgreSQL" version="15.3" />
+        <dependency name="Supabase Vault Extension" version="latest" />
+      </database>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint category="architecture">
+      Implement PII masking utility as shared module in packages/shared/pii-masking to ensure consistent masking logic across all consumers (embedding-worker, future RAG services, audit exporters)
+    </constraint>
+    <constraint category="security">
+      Store pii_mask_map in protected Supabase schema with Row Level Security (RLS) policies restricting access to ADMIN role only; enforce append-only constraints (no DELETE/UPDATE)
+    </constraint>
+    <constraint category="integration">
+      Integrate masking into embedding-worker pipeline before text concatenation and embedding generation to ensure masked data never reaches LLM provider; mask at extraction stage, not retrieval stage
+    </constraint>
+    <constraint category="hashing">
+      Use deterministic hashing (SHA-256 with project-wide salt) for customer/vendor IDs to enable joins without PII exposure; for partial masking (e.g., tax IDs), preserve last 4 digits for auditability
+    </constraint>
+    <constraint category="thesis-scope">
+      Use Supabase Vault (built-in Postgres extension) instead of AWS Secrets Manager for cryptographic salt storage to demonstrate Supabase-native features without external cloud dependencies
+    </constraint>
+    <constraint category="thesis-scope">
+      Implement basic SQL unmask function with minimal audit logging instead of full RBAC/MFA workflow; remove frontend UI components, approval workflows, MFA integration, time-limited access tokens
+    </constraint>
+    <constraint category="performance">
+      Masking overhead must be < 100ms per document; verify with benchmark on 1000-document batch measuring P50/P95/P99 latency delta
+    </constraint>
+    <constraint category="compliance">
+      Maintain Vietnam Circular 200/2014/TT-BTC compliance: 10-year audit retention, immutable audit trails, reversibility via pii_mask_map for compliance investigations
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>PiiMaskingService</name>
+      <kind>Java Service Class</kind>
+      <signature>
+        public class PiiMaskingService {
+          public String maskCustomerName(String name, UUID companyId);
+          public String maskTaxId(String taxId, UUID companyId);
+          public String maskEmail(String email, UUID companyId);
+          public String maskPhone(String phone, UUID companyId);
+          public String maskAddress(String address, UUID companyId);
+          private String getSalt(UUID companyId);
+        }
+      </signature>
+      <path>packages/shared/pii-masking/src/main/java/com/erp/rag/piimasking/PiiMaskingService.java</path>
+    </interface>
+    <interface>
+      <name>pii_mask_map Table</name>
+      <kind>Database Table</kind>
+      <signature>
+        CREATE TABLE pii_mask_map (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          source_table TEXT NOT NULL,
+          source_id UUID NOT NULL,
+          field TEXT NOT NULL,
+          masked_value TEXT NOT NULL,
+          hash TEXT NOT NULL,
+          salt_version INT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX idx_pii_mask_map_source ON pii_mask_map(source_table, source_id);
+        CREATE INDEX idx_pii_mask_map_masked ON pii_mask_map(masked_value);
+      </signature>
+      <path>Database schema migration</path>
+    </interface>
+    <interface>
+      <name>pii_unmask_audit Table</name>
+      <kind>Database Table</kind>
+      <signature>
+        CREATE TABLE pii_unmask_audit (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL,
+          entity_id UUID NOT NULL,
+          justification TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT now()
+        );
+      </signature>
+      <path>Database schema migration</path>
+    </interface>
+    <interface>
+      <name>unmask_pii SQL Function</name>
+      <kind>PostgreSQL Function</kind>
+      <signature>
+        CREATE FUNCTION unmask_pii(p_masked_value TEXT, p_company_id UUID)
+        RETURNS TEXT
+        LANGUAGE plpgsql
+        SECURITY DEFINER
+        AS $$
+        BEGIN
+          -- Query pii_mask_map to reverse lookup
+          -- Restricted to service_role only
+          -- Log to pii_unmask_audit
+        END;
+        $$;
+      </signature>
+      <path>Database schema migration</path>
+    </interface>
+    <interface>
+      <name>Supabase Vault API</name>
+      <kind>PostgreSQL Extension API</kind>
+      <signature>
+        -- Store secret: SELECT vault.create_secret('salt_value', 'pii_masking_global_salt');
+        -- Retrieve secret: SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'pii_masking_global_salt';
+      </signature>
+      <path>Supabase Vault Extension</path>
+    </interface>
+    <interface>
+      <name>PiiScannerService</name>
+      <kind>Java Service Class</kind>
+      <signature>
+        public class PiiScannerService {
+          public ScanResult scanVectorDocuments();
+          public ScanResult scanRagQueries();
+          private boolean matchesVietnameseTaxId(String text);
+          private boolean matchesEmail(String text);
+          private boolean matchesPhone(String text);
+          private boolean matchesVietnameseName(String text);
+        }
+      </signature>
+      <path>packages/shared/pii-masking/src/main/java/com/erp/rag/piimasking/PiiScannerService.java</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use Testcontainers-based integration tests to validate end-to-end masking: ingest sample documents with PII, generate embeddings, scan resulting vector_documents and rag_queries tables for raw PII via regex (Vietnamese tax ID patterns, email patterns, phone patterns). JUnit 5 for unit tests with Mockito for service mocking. Coverage target: ≥ 80% on critical services (PiiMaskingService, PiiScannerService). Spring Boot test framework for integration tests with @SpringBootTest and @Testcontainers annotations.
+    </standards>
+    <locations>
+      - packages/shared/pii-masking/src/test/java/com/erp/rag/piimasking/
+      - apps/backend/src/test/java/com/erp/rag/integration/pii/
+    </locations>
+    <ideas>
+      <testIdea criteriaId="AC1">
+        Unit test: Verify deterministic hashing - same input with same salt produces identical masked value across multiple invocations
+      </testIdea>
+      <testIdea criteriaId="AC1">
+        Unit test: Verify mask format compliance - customer names follow "Customer_12345" pattern, tax IDs follow "TAX_*****1234" pattern
+      </testIdea>
+      <testIdea criteriaId="AC2">
+        Unit test: Verify salt retrieval from Supabase Vault - authorized role retrieves salt successfully, unauthorized role returns null
+      </testIdea>
+      <testIdea criteriaId="AC2">
+        Integration test: Verify pii_mask_map persistence - masked values stored with correct source_table, source_id, field, hash, salt_version
+      </testIdea>
+      <testIdea criteriaId="AC2">
+        Integration test: Verify unmask_pii function - service_role can reverse lookup, regular role gets access denied error, audit log captured
+      </testIdea>
+      <testIdea criteriaId="AC3">
+        Integration test: End-to-end PII scanner validation - ingest 10 documents with known PII, run scanner, verify zero PII detections in vector_documents and rag_queries tables
+      </testIdea>
+      <testIdea criteriaId="AC3">
+        Unit test: Vietnamese regex patterns - test Vietnamese tax ID format (10 digits), Vietnamese name patterns (Unicode diacritics), Vietnamese phone patterns (+84, 0-prefixed)
+      </testIdea>
+      <testIdea criteriaId="AC4">
+        Performance test: Benchmark masking overhead on 1000-document batch - measure P50/P95/P99 latency delta with/without masking, verify < 100ms per document
+      </testIdea>
+      <testIdea criteriaId="AC4">
+        Integration test: Test suite with 100+ sample records covering customers, vendors, invoices, bills - validate masking correctness and referential integrity after masking
+      </testIdea>
+      <testIdea criteriaId="AC1-AC4">
+        Edge case tests: null PII fields, malformed data, Vietnamese diacritics in names, multi-byte UTF-8 characters, cross-table referential integrity
+      </testIdea>
+    </ideas>
+  </tests>
+</story-context>

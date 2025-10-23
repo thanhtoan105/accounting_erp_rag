@@ -1,0 +1,133 @@
+package com.erp.rag.ragplatform.rag;
+
+import com.erp.rag.ragplatform.rag.dto.QueryRequest;
+import com.erp.rag.ragplatform.rag.dto.QueryResponse;
+import com.erp.rag.ragplatform.rag.dto.QueryResult;
+import com.erp.rag.ragplatform.rag.service.RagQueryService;
+import com.erp.rag.ragplatform.rag.service.QueryEmbeddingService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+/**
+ * REST controller for RAG query processing endpoint.
+ * <p>
+ * Story 1.5 – AC1: Implement /api/v1/rag/query REST POST endpoint that
+ * accepts JSON payload with companyId, query (natural language text), language ("vi"|"en"),
+ * and optional filters (module, fiscalPeriod, minConfidence), returning 202 Accepted with
+ * queryId and streamUrl for SSE streaming.
+ * </p>
+ *
+ * @author dev-agent
+ * @since 1.0.0
+ */
+@RestController
+@RequestMapping("/api/v1/rag")
+@Validated
+public class RagQueryController {
+
+    private static final Logger logger = LoggerFactory.getLogger(RagQueryController.class);
+
+    private final RagQueryService ragQueryService;
+    private final QueryEmbeddingService queryEmbeddingService;
+    private final Counter queriesProcessedCounter;
+    private final Counter queryErrorsCounter;
+    private final Timer queryLatencyTimer;
+
+    public RagQueryController(RagQueryService ragQueryService,
+                              QueryEmbeddingService queryEmbeddingService,
+                              MeterRegistry meterRegistry) {
+        this.ragQueryService = ragQueryService;
+        this.queryEmbeddingService = queryEmbeddingService;
+
+        this.queriesProcessedCounter = Counter.builder("queries_processed_total")
+                .description("Total number of queries processed")
+                .register(meterRegistry);
+
+        this.queryErrorsCounter = Counter.builder("query_errors_total")
+                .description("Total number of query errors")
+                .register(meterRegistry);
+
+        this.queryLatencyTimer = Timer.builder("query_latency_seconds")
+                .description("Query processing latency")
+                .register(meterRegistry);
+    }
+
+    /**
+     * Process natural language query and return relevant documents via Server-Sent Events.
+     *
+     * @param queryRequest query request with company ID, natural language query, language, and filters
+     * @return 202 Accepted with queryId and SSE stream URL
+     */
+    @PostMapping(value = "/query", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<QueryResponse> processQuery(@Valid @RequestBody QueryRequest queryRequest) {
+        logger.info("Processing RAG query for company: {}, language: {}",
+                   queryRequest.getCompanyId(), queryRequest.getLanguage());
+
+        return queryLatencyTimer.record(() -> {
+            try {
+                UUID queryId = ragQueryService.processQuery(queryRequest);
+
+                String streamUrl = String.format("/api/v1/rag/query/%s/events", queryId);
+
+                QueryResponse response = new QueryResponse(
+                    queryId,
+                    streamUrl,
+                    "Query accepted for processing",
+                    202
+                );
+
+                queriesProcessedCounter.increment();
+                logger.info("Query accepted with ID: {}", queryId);
+
+                return ResponseEntity.status(202).body(response);
+
+            } catch (Exception e) {
+                queryErrorsCounter.increment();
+                logger.error("Failed to process query for company {}: {}",
+                           queryRequest.getCompanyId(), e.getMessage(), e);
+
+                QueryResponse errorResponse = new QueryResponse(
+                    null,
+                    null,
+                    "Failed to process query: " + e.getMessage(),
+                    500
+                );
+
+                return ResponseEntity.internalServerError().body(errorResponse);
+            }
+        });
+    }
+
+    /**
+     * Get query status and results via SSE streaming.
+     *
+     * @param queryId unique query identifier
+     * @return SSE stream with query progress and results
+     */
+    @GetMapping(value = "/query/{queryId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter getQueryEvents(@PathVariable UUID queryId) {
+        logger.info("Opening SSE stream for query: {}", queryId);
+
+        return ragQueryService.createQueryStream(queryId);
+    }
+
+    /**
+     * Health check endpoint for query service.
+     *
+     * @return health status
+     */
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("RAG Query Service: Healthy");
+    }
+}

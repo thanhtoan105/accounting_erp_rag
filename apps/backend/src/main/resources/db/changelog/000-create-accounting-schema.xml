@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <changeSet id="000-create-accounting-schema" author="dev-agent">
+        <comment>
+            Create accounting schema for all ERP tables and Liquibase tracking.
+            This MUST run first before any other migrations.
+        </comment>
+
+        <sql>
+            CREATE SCHEMA IF NOT EXISTS accounting;
+            GRANT ALL ON SCHEMA accounting TO postgres;
+            GRANT USAGE ON SCHEMA accounting TO authenticated;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
+

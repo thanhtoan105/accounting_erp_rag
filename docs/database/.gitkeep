@@ -1,0 +1,31 @@
+# Database Schema Documentation
+
+**Status:** Auto-generated documentation will be placed here
+
+**Generation Command:**
+```bash
+./gradlew bootRun --args='--schema.documentation.enabled=true --schema.name=accounting'
+```
+
+## Files Generated
+
+- `schema-documentation.json` - Machine-readable schema metadata
+- `schema-documentation.md` - Human-readable documentation
+- `table-validation.json` - Critical tables validation report
+
+## Requirements
+
+**AC2:** Document ≥60 ERP tables with metadata
+**AC3:** Include automated schema documentation in repository
+
+## Usage
+
+The schema documentation tool introspects the Supabase PostgreSQL database and generates:
+
+1. Table listings with column details
+2. Primary key information
+3. Foreign key relationships
+4. Data types and constraints
+5. Validation of critical accounting tables
+
+Refer to the generated `.md` file for human-readable schema documentation.

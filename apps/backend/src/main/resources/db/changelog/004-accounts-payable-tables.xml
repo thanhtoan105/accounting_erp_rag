@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <changeSet id="004-1-create-vendors-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="accounting" tableName="companies"/>
+                <tableExists schemaName="accounting" tableName="accounts"/>
+            </and>
+        </preConditions>
+        <comment>Create vendor master data to support Accounts Payable workflows</comment>
+        <sql splitStatements="true"><![CDATA[
+            CREATE TABLE accounting.vendors (
+                id BIGSERIAL PRIMARY KEY,
+                company_id BIGINT NOT NULL REFERENCES accounting.companies(id),
+                code VARCHAR(50) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                name_en VARCHAR(255),
+                tax_code VARCHAR(50),
+                address TEXT,
+                phone VARCHAR(50),
+                email VARCHAR(255),
+                contact_person VARCHAR(255),
+                payment_terms INTEGER DEFAULT 30,
+                account_id BIGINT REFERENCES accounting.accounts(id),
+                is_active BOOLEAN DEFAULT TRUE,
+                notes TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP NOT NULL DEFAULT now(),
+                deleted_at TIMESTAMP,
+                CONSTRAINT unique_company_vendor_code UNIQUE (company_id, code)
+            );
+
+            CREATE INDEX idx_vendors_company_code ON accounting.vendors(company_id, code);
+            CREATE INDEX idx_vendors_name ON accounting.vendors(name);
+            CREATE INDEX idx_vendors_tax_code ON accounting.vendors(tax_code);
+
+            COMMENT ON TABLE accounting.vendors IS 'Vendor master data';
+            COMMENT ON COLUMN accounting.vendors.account_id IS 'Linked AP account (typically 331)';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="004-2-create-bills-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="accounting" tableName="vendors"/>
+                <tableExists schemaName="accounting" tableName="fiscal_periods"/>
+                <tableExists schemaName="accounting" tableName="journal_entries"/>
+                <tableExists schemaName="accounting" tableName="user_profiles"/>
+            </and>
+        </preConditions>
+        <comment>Create vendor bills table (Accounts Payable)</comment>
+        <sql splitStatements="true"><![CDATA[
+            CREATE TABLE accounting.bills (
+                id BIGSERIAL PRIMARY KEY,
+                company_id BIGINT NOT NULL REFERENCES accounting.companies(id),
+                vendor_id BIGINT NOT NULL REFERENCES accounting.vendors(id),
+                fiscal_period_id BIGINT NOT NULL REFERENCES accounting.fiscal_periods(id),
+                bill_number VARCHAR(50) NOT NULL,
+                bill_date DATE NOT NULL,
+                due_date DATE NOT NULL,
+                subtotal DECIMAL(19,2) NOT NULL CHECK (subtotal >= 0),
+                tax_rate DECIMAL(5,2) DEFAULT 10.00,
+                tax_amount DECIMAL(19,2) NOT NULL CHECK (tax_amount >= 0),
+                total_amount DECIMAL(19,2) NOT NULL CHECK (total_amount >= 0),
+                paid_amount DECIMAL(19,2) DEFAULT 0 CHECK (paid_amount >= 0),
+                status VARCHAR(20) NOT NULL CHECK (status IN ('DRAFT', 'RECEIVED', 'APPROVED', 'PAID', 'PARTIAL', 'CANCELLED')),
+                notes TEXT,
+                journal_entry_id BIGINT REFERENCES accounting.journal_entries(id),
+                created_by UUID NOT NULL REFERENCES accounting.user_profiles(user_id),
+                created_at TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP NOT NULL DEFAULT now(),
+                deleted_at TIMESTAMP,
+                CONSTRAINT unique_company_bill_number UNIQUE (company_id, bill_number),
+                CONSTRAINT check_bill_paid_amount CHECK (paid_amount <= total_amount)
+            );
+
+            CREATE INDEX idx_bills_company_date ON accounting.bills(company_id, bill_date);
+            CREATE INDEX idx_bills_vendor ON accounting.bills(vendor_id);
+            CREATE INDEX idx_bills_status ON accounting.bills(status);
+            CREATE INDEX idx_bills_due_date ON accounting.bills(due_date);
+
+            COMMENT ON TABLE accounting.bills IS 'Vendor bills / Accounts Payable obligations';
+            COMMENT ON COLUMN accounting.bills.status IS 'Bill status: DRAFT, RECEIVED, APPROVED, PAID, PARTIAL, CANCELLED';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="004-3-create-bill-lines-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <tableExists schemaName="accounting" tableName="bills"/>
+        </preConditions>
+        <comment>Create bill line items table</comment>
+        <sql splitStatements="true"><![CDATA[
+            CREATE TABLE accounting.bill_lines (
+                id BIGSERIAL PRIMARY KEY,
+                bill_id BIGINT NOT NULL REFERENCES accounting.bills(id) ON DELETE CASCADE,
+                description VARCHAR(500) NOT NULL,
+                quantity DECIMAL(19,4) NOT NULL CHECK (quantity > 0),
+                unit_price DECIMAL(19,2) NOT NULL CHECK (unit_price >= 0),
+                tax_rate DECIMAL(5,2) DEFAULT 10.00,
+                tax_amount DECIMAL(19,2) NOT NULL CHECK (tax_amount >= 0),
+                line_total DECIMAL(19,2) NOT NULL CHECK (line_total >= 0),
+                line_order INTEGER NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT now()
+            );
+
+            CREATE INDEX idx_bill_lines_bill ON accounting.bill_lines(bill_id);
+
+            COMMENT ON TABLE accounting.bill_lines IS 'Bill line items';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="004-4-create-vendor-payments-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="accounting" tableName="vendors"/>
+                <tableExists schemaName="accounting" tableName="fiscal_periods"/>
+                <tableExists schemaName="accounting" tableName="bank_accounts"/>
+                <tableExists schemaName="accounting" tableName="journal_entries"/>
+                <tableExists schemaName="accounting" tableName="user_profiles"/>
+            </and>
+        </preConditions>
+        <comment>Create vendor payments table</comment>
+        <sql splitStatements="true"><![CDATA[
+            CREATE TABLE accounting.vendor_payments (
+                id BIGSERIAL PRIMARY KEY,
+                company_id BIGINT NOT NULL REFERENCES accounting.companies(id),
+                vendor_id BIGINT NOT NULL REFERENCES accounting.vendors(id),
+                fiscal_period_id BIGINT NOT NULL REFERENCES accounting.fiscal_periods(id),
+                payment_number VARCHAR(50) NOT NULL,
+                payment_date DATE NOT NULL,
+                amount DECIMAL(19,2) NOT NULL CHECK (amount > 0),
+                payment_method VARCHAR(50) NOT NULL CHECK (payment_method IN ('CASH', 'BANK_TRANSFER', 'CHECK', 'CREDIT_CARD', 'OTHER')),
+                bank_account_id BIGINT,
+                reference_no VARCHAR(100),
+                notes TEXT,
+                journal_entry_id BIGINT REFERENCES accounting.journal_entries(id),
+                created_by UUID NOT NULL REFERENCES accounting.user_profiles(user_id),
+                created_at TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP NOT NULL DEFAULT now(),
+                deleted_at TIMESTAMP,
+                CONSTRAINT unique_company_vendor_payment_number UNIQUE (company_id, payment_number)
+            );
+
+            CREATE INDEX idx_vendor_payments_company_date ON accounting.vendor_payments(company_id, payment_date);
+            CREATE INDEX idx_vendor_payments_vendor ON accounting.vendor_payments(vendor_id);
+
+            COMMENT ON TABLE accounting.vendor_payments IS 'Payments issued to vendors';
+            COMMENT ON COLUMN accounting.vendor_payments.payment_method IS 'Payment method: CASH, BANK_TRANSFER, CHECK, CREDIT_CARD, OTHER';
+
+            ALTER TABLE accounting.vendor_payments
+                ADD CONSTRAINT fk_vendor_payments_bank_account FOREIGN KEY (bank_account_id)
+                REFERENCES accounting.bank_accounts(id);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="004-5-create-bill-payments-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="accounting" tableName="bills"/>
+                <tableExists schemaName="accounting" tableName="vendor_payments"/>
+            </and>
+        </preConditions>
+        <comment>Create bill to vendor payment association table</comment>
+        <sql splitStatements="true"><![CDATA[
+            CREATE TABLE accounting.bill_payments (
+                id BIGSERIAL PRIMARY KEY,
+                bill_id BIGINT NOT NULL REFERENCES accounting.bills(id),
+                payment_id BIGINT NOT NULL REFERENCES accounting.vendor_payments(id),
+                amount_applied DECIMAL(19,2) NOT NULL CHECK (amount_applied > 0),
+                created_at TIMESTAMP NOT NULL DEFAULT now()
+            );
+
+            CREATE INDEX idx_bill_payments_bill ON accounting.bill_payments(bill_id);
+            CREATE INDEX idx_bill_payments_payment ON accounting.bill_payments(payment_id);
+
+            COMMENT ON TABLE accounting.bill_payments IS 'Links vendor payments to bills (many-to-many relationship)';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="004-6-add-ap-updated-at-triggers" author="dev-agent" runOnChange="true">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="accounting" tableName="vendors"/>
+                <tableExists schemaName="accounting" tableName="bills"/>
+                <tableExists schemaName="accounting" tableName="vendor_payments"/>
+            </and>
+        </preConditions>
+        <comment>Ensure updated_at columns maintained for Accounts Payable tables</comment>
+        <sql splitStatements="true"><![CDATA[
+            CREATE TRIGGER update_vendors_timestamp BEFORE UPDATE ON accounting.vendors
+                FOR EACH ROW EXECUTE FUNCTION accounting.update_updated_at_column();
+
+            CREATE TRIGGER update_bills_timestamp BEFORE UPDATE ON accounting.bills
+                FOR EACH ROW EXECUTE FUNCTION accounting.update_updated_at_column();
+
+            CREATE TRIGGER update_vendor_payments_timestamp BEFORE UPDATE ON accounting.vendor_payments
+                FOR EACH ROW EXECUTE FUNCTION accounting.update_updated_at_column();
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

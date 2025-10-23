@@ -1,0 +1,176 @@
+databaseChangeLog:
+  - changeSet:
+      id: story-1.5-create-rag-queries-table
+      author: bmad-dev-story-1.5
+      changes:
+        - createTable:
+            schemaName: accounting
+            tableName: rag_queries
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: company_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: language
+                  type: varchar(2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: query_text
+                  type: varchar(500)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: filters
+                  type: jsonb
+              - column:
+                  name: embedding_latency_ms
+                  type: integer
+              - column:
+                  name: retrieval_latency_ms
+                  type: integer
+              - column:
+                  name: total_latency_ms
+                  type: integer
+              - column:
+                  name: retrieved_doc_count
+                  type: integer
+              - column:
+                  name: pruned_doc_count
+                  type: integer
+              - column:
+                  name: recall_at_10
+                  type: float
+              - column:
+                  name: error_state
+                  type: jsonb
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: timestamp
+
+  - changeSet:
+      id: story-1.5-create-rag-queries-indexes
+      author: bmad-dev-story-1.5
+      changes:
+        - createIndex:
+            schemaName: accounting
+            tableName: rag_queries
+            indexName: idx_rag_queries_company_id
+            columns:
+              - column:
+                  name: company_id
+        - createIndex:
+            schemaName: accounting
+            tableName: rag_queries
+            indexName: idx_rag_queries_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            schemaName: accounting
+            tableName: rag_queries
+            indexName: idx_rag_queries_status
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            schemaName: accounting
+            tableName: rag_queries
+            indexName: idx_rag_queries_created_at
+            columns:
+              - column:
+                  name: created_at
+
+  - changeSet:
+      id: story-1.5-create-rag-query-documents-table
+      author: bmad-dev-story-1.5
+      changes:
+        - createTable:
+            schemaName: accounting
+            tableName: rag_query_documents
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: query_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_rag_query_documents_query
+                    references: accounting.rag_queries(id)
+              - column:
+                  name: document_vector_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_rag_query_documents_vector
+                    references: accounting.vector_documents(id)
+              - column:
+                  name: rank
+                  type: integer
+                  constraints:
+                    nullable: false
+              - column:
+                  name: relevance_score
+                  type: float
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tokens_used
+                  type: integer
+              - column:
+                  name: excerpt
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: story-1.5-create-rag-query-documents-indexes
+      author: bmad-dev-story-1.5
+      changes:
+        - createIndex:
+            schemaName: accounting
+            tableName: rag_query_documents
+            indexName: idx_rag_query_documents_query_id
+            columns:
+              - column:
+                  name: query_id
+        - createIndex:
+            schemaName: accounting
+            tableName: rag_query_documents
+            indexName: idx_rag_query_documents_document_id
+            columns:
+              - column:
+                  name: document_vector_id

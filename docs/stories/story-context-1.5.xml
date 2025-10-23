@@ -1,0 +1,253 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.5</storyId>
+    <title>Basic RAG Query Processing Pipeline</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.5.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>backend engineer building the Core RAG pipeline</asA>
+    <iWant>to implement an end-to-end query processing pipeline that accepts natural language queries, generates embeddings, retrieves relevant ERP documents via vector similarity search, and prepares grounded context for LLM answer generation</iWant>
+    <soThat>downstream Story 1.6 can integrate LLM answer generation and deliver complete RAG responses to users</soThat>
+    <tasks>
+      - Design query API contract and data models (AC1, AC7, AC10)
+      - Implement query embedding generation (AC2, AC8)
+      - Implement vector similarity search (AC3, AC4, AC6, AC8)
+      - Implement context window management (AC5)
+      - Implement query logging and audit trail (AC7)
+      - Build end-to-end query orchestration (AC1, AC10)
+      - Add telemetry and observability (AC8)
+      - Create performance test suite (AC8, AC9)
+      - Write comprehensive unit and integration tests (AC1-AC10)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Query API endpoint `/api/v1/rag/query` accepts POST requests with natural language query text, language (vi|en), company_id, and optional metadata filters (module, fiscal_period, document_type).
+    2. Query embedding generation uses same model as document embeddings (Azure OpenAI text-embedding-3-large from Story 1.4) with 1536 dimensions, ensuring semantic consistency between query and document vectors.
+    3. Vector similarity search queries vector_documents table (Story 1.3) using pgvector cosine similarity `<=>` operator, retrieving top-10 documents ordered by relevance score (1 - cosine_distance).
+    4. Retrieved documents ranked by relevance score (0.0-1.0 scale) with scores persisted to rag_query_documents junction table for citation tracking and recall analysis.
+    5. Context window management: calculate total tokens across retrieved documents, prune lowest-ranked docs if total exceeds 8K token limit, ensuring LLM context stays within budget.
+    6. Metadata filtering: support filtering retrieved documents by module (ar, ap, gl, cash_bank), fiscal_period (YYYY-MM), document_type (invoice, bill, journal_entry, etc.) via WHERE clauses on JSONB metadata fields.
+    7. Query logging: persist every query to rag_queries table with immutable audit trail capturing user_id, company_id, query_text, query_embedding (for reuse), language, status, timestamps, and latency metrics.
+    8. P95 retrieval latency ≤ 1500ms (query embedding + vector search + context preparation) validated via k6 load test with 20 concurrent users and 100K indexed documents.
+    9. Test queries validated: "What is current AR balance?", "Show overdue invoices", "Khách hàng nào còn nợ?" (Vietnamese), "Show trial balance", with documented relevance scores for top-10 results.
+    10. Return structured response: query_id (UUID), retrieved_document_ids, relevance_scores, excerpts (first 200 chars), metadata (document_type, module, fiscal_period), and grounded_context (concatenated text for LLM).
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>E1-S5: Basic RAG Query Processing Pipeline</section>
+        <snippet>Implement end-to-end RAG query pipeline: accept natural language query (Vietnamese/English), generate query embedding, retrieve top-k relevant documents from vector DB, and prepare context for LLM. P95 retrieval latency target: ≤ 1500ms.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification: Core RAG Pipeline</title>
+        <section>User Query Execution Workflow</section>
+        <snippet>Query lifecycle: 1) Retrieval stage computes query embedding, runs pgvector search with metadata filters, enforces recall@10 ≥ 0.90 by adjusting ef_search, prunes to token budget. 2) Compose grounded prompt with citations. 3) Stream tokens via SSE. 4) Record latency telemetry per stage.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification: Core RAG Pipeline</title>
+        <section>Data Models and Contracts</section>
+        <snippet>rag_queries table: id UUID, company_id, user_id, query_text TEXT, query_embedding VECTOR(1536), language, status, retrieval_latency_ms, generation_latency_ms, total_latency_ms, created_at, completed_at. rag_query_documents junction: query_id, document_vector_id, rank, relevance_score, tokens_used, excerpt.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification: Core RAG Pipeline</title>
+        <section>Performance NFR</section>
+        <snippet>Meet PRD NFR-1 budgets: ≤ 5 s P95 / ≤ 10 s P99 for conversational answers once optimized; Epic 1 baseline must reach ≤ 8 s P95 with 500 K documents. Vector retrieval latency ≤ 1.5 s P95, LLM generation ≤ 1.5 s P95. Incremental indexing completes within 5 minutes.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-1.3.md</path>
+        <title>Story 1.3: Vector Database Setup</title>
+        <section>Deliverables</section>
+        <snippet>VectorDocumentRepository with findSimilarVectors() and findSimilarVectorsWithMetadata() methods using pgvector cosine similarity. HNSW index configured with m=16, ef_construction=64. Connection pooling (min: 2, max: 10). P95 latency: 343ms @ 100K docs.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/story-1.4.md</path>
+        <title>Story 1.4: Document Embedding Generation Pipeline</title>
+        <section>Deliverables</section>
+        <snippet>AzureOpenAiEmbeddingService.generateEmbeddings(List<String> texts) with batch processing (≤100 docs), retry logic (3x exponential backoff), Prometheus metrics. Embedding dimension: 1536 (text-embedding-3-large). Cost tracking: $0.13/1M tokens.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Module 1: System Management & Access Control</section>
+        <snippet>Role-based permissions: Admin (full access), Chief Accountant (all accounting operations), Accountant (transaction recording), Viewer (read-only reports). Permission enforcement at API and UI levels. Audit log records all permission checks.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>Component Boundaries</section>
+        <snippet>rag-platform module contains query processing services, controllers, and DTOs. supabase-gateway shared library provides vector operations and connection pooling. Spring Boot Actuator exposes metrics via /actuator/prometheus endpoint.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/vector/VectorDocumentRepository.java</path>
+        <kind>repository</kind>
+        <symbol>VectorDocumentRepository</symbol>
+        <lines>1-155</lines>
+        <reason>Existing repository with findSimilarVectors() and findSimilarVectorsWithMetadata() methods from Story 1.3. Reuse for vector similarity search in AC3, AC6.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/vector/VectorDocument.java</path>
+        <kind>entity</kind>
+        <symbol>VectorDocument</symbol>
+        <lines>1-120</lines>
+        <reason>Entity model for vector_documents table with embedding VECTOR(1536), metadata JSONB, content_text TEXT. Reference for response DTO mapping.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/java/com/erp/rag/ragplatform/worker/service/embedding/AzureOpenAiEmbeddingService.java</path>
+        <kind>service</kind>
+        <symbol>AzureOpenAiEmbeddingService</symbol>
+        <lines>1-151</lines>
+        <reason>Reusable embedding service from Story 1.4. Use generateEmbedding(String text) for query embedding in AC2. Model: text-embedding-3-large, dimension: 1536.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/java/com/erp/rag/supabase/entity/RagQuery.java</path>
+        <kind>entity</kind>
+        <symbol>RagQuery</symbol>
+        <lines>1-160</lines>
+        <reason>Existing entity for rag_queries table. Modify to match Story 1.5 AC7 schema (add query_embedding, retrieval_latency_ms fields). Reference for query logging implementation.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/java/com/erp/rag/supabase/repository/RagQueryRepository.java</path>
+        <kind>repository</kind>
+        <symbol>RagQueryRepository</symbol>
+        <lines>1-20</lines>
+        <reason>Existing JPA repository for RagQuery. Extend with custom query methods if needed (e.g., findByQueryHashAndCompanyId for caching).</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/java/com/erp/rag/ragplatform/worker/service/EmbeddingWorkerService.java</path>
+        <kind>service</kind>
+        <symbol>EmbeddingWorkerService</symbol>
+        <lines>1-200</lines>
+        <reason>Reference for orchestration pattern: error handling, progress tracking, telemetry. Apply similar patterns to RagQueryService orchestration in AC1, AC10.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/java/com/erp/rag/supabase/health/DatabaseHealthController.java</path>
+        <kind>controller</kind>
+        <symbol>DatabaseHealthController</symbol>
+        <lines>1-80</lines>
+        <reason>Example Spring Boot controller with /internal endpoint pattern. Follow same pattern for /api/v1/rag/query endpoint in AC1.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <java>
+        <dependency>
+          <name>org.springframework.boot:spring-boot-starter-web</name>
+          <version>3.2.5</version>
+          <reason>REST API endpoint implementation</reason>
+        </dependency>
+        <dependency>
+          <name>org.springframework.boot:spring-boot-starter-data-jpa</name>
+          <version>3.2.5</version>
+          <reason>RagQuery and RagQueryDocument entity persistence</reason>
+        </dependency>
+        <dependency>
+          <name>io.micrometer:micrometer-core</name>
+          <version>1.12.5</version>
+          <reason>Prometheus metrics for AC8 telemetry</reason>
+        </dependency>
+        <dependency>
+          <name>org.springframework.retry:spring-retry</name>
+          <version>2.0.5</version>
+          <reason>Retry logic for transient failures (embedding API, vector DB)</reason>
+        </dependency>
+        <dependency>
+          <name>org.testcontainers:postgresql</name>
+          <version>1.19.7</version>
+          <reason>Integration tests with Postgres + pgvector</reason>
+        </dependency>
+        <dependency>
+          <name>org.junit.jupiter:junit-jupiter</name>
+          <version>5.10.2</version>
+          <reason>Unit and integration testing</reason>
+        </dependency>
+      </java>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    1. Query embedding MUST use same model as document embeddings (Azure OpenAI text-embedding-3-large, 1536 dimensions) for semantic consistency.
+    2. All queries MUST enforce company_id tenant scoping at database level (no cross-tenant data leakage).
+    3. Vector similarity search MUST use cosine similarity via pgvector `<=>` operator (not L2 distance or inner product).
+    4. Context window MUST NOT exceed 8K tokens (conservative LLM context budget for GPT-4).
+    5. Query audit trail MUST be append-only with 10-year retention per Circular 200 compliance requirements.
+    6. RBAC validation MUST occur via Supabase JWT at controller level before processing query.
+    7. P95 latency target ≤ 1500ms (embedding + search + context prep) MUST be validated with 100K indexed documents.
+    8. Metadata filtering MUST use PostgreSQL JSONB containment operator `@>` (not client-side filtering).
+    9. Error handling MUST classify errors as transient/permanent/critical and log structured JSON with query_id.
+    10. All database queries MUST exclude soft-deleted records (deleted_at IS NULL).
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>VectorDocumentRepository.findSimilarVectors</name>
+      <kind>Spring Data JPA Repository Method</kind>
+      <signature>List&lt;VectorDocument&gt; findSimilarVectors(UUID companyId, String queryEmbedding, int limit)</signature>
+      <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/vector/VectorDocumentRepository.java</path>
+      <notes>Returns top K nearest neighbors using cosine distance. queryEmbedding format: "[0.1,0.2,...]". Uses HNSW index from Story 1.3.</notes>
+    </interface>
+    <interface>
+      <name>VectorDocumentRepository.findSimilarVectorsWithMetadata</name>
+      <kind>Spring Data JPA Repository Method</kind>
+      <signature>List&lt;VectorDocument&gt; findSimilarVectorsWithMetadata(UUID companyId, String queryEmbedding, String metadataFilter, int limit)</signature>
+      <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/vector/VectorDocumentRepository.java</path>
+      <notes>Vector search with JSONB metadata filtering. metadataFilter uses jsonpath syntax (e.g., '$.module == "ar"'). Use for AC6 metadata filtering.</notes>
+    </interface>
+    <interface>
+      <name>AzureOpenAiEmbeddingService.generateEmbedding</name>
+      <kind>Service Method</kind>
+      <signature>float[] generateEmbedding(String text) throws EmbeddingGenerationException</signature>
+      <path>apps/backend/src/main/java/com/erp/rag/ragplatform/worker/service/embedding/AzureOpenAiEmbeddingService.java</path>
+      <notes>Generates single embedding with retry logic (3x exponential backoff). Returns float[1536]. Use for query embedding in AC2.</notes>
+    </interface>
+    <interface>
+      <name>RagQueryRepository (JPA Repository)</name>
+      <kind>Spring Data JPA Repository</kind>
+      <signature>public interface RagQueryRepository extends JpaRepository&lt;RagQuery, UUID&gt;</signature>
+      <path>apps/backend/src/main/java/com/erp/rag/supabase/repository/RagQueryRepository.java</path>
+      <notes>Persistence for RagQuery entity. Extend with custom methods if needed (e.g., findByQueryHashAndCompanyId for caching).</notes>
+    </interface>
+    <interface>
+      <name>POST /api/v1/rag/query (NEW)</name>
+      <kind>REST API Endpoint</kind>
+      <signature>POST /api/v1/rag/query | Request: {companyId, query, language, filters} | Response: {queryId, retrievedDocuments, groundedContext, latencyMs}</signature>
+      <path>apps/backend/src/main/java/com/erp/rag/ragplatform/rag/RagQueryController.java</path>
+      <notes>New endpoint to create in AC1. Accepts JSON payload, returns structured response with query_id and retrieved documents. Validates RBAC via JWT.</notes>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      All tests follow JUnit 5 + Mockito patterns. Integration tests use Testcontainers with Postgres + pgvector. Unit tests mock external dependencies (VectorDocumentRepository, EmbeddingService). Performance tests use k6 with 20 concurrent users. Target: 80% code coverage on critical services (RagQueryService, VectorSearchService, ContextWindowManager).
+    </standards>
+    <locations>
+      - Unit tests: apps/backend/src/test/java/com/erp/rag/ragplatform/rag/
+      - Integration tests: apps/backend/src/test/java/com/erp/rag/supabase/vector/
+      - Performance tests: scripts/k6/rag-query-load-test.js
+    </locations>
+    <ideas>
+      - AC1: Test /api/v1/rag/query endpoint with valid/invalid payloads, verify JWT validation, test metadata filter parsing.
+      - AC2: Test query embedding generation with AzureOpenAiEmbeddingService, verify 1536 dimensions, test caching (reuse embedding for identical query).
+      - AC3: Test VectorDocumentRepository.findSimilarVectors() with 100K seeded docs, verify top-10 results ordered by relevance, test cosine distance calculation.
+      - AC4: Test relevance score conversion (1.0 - distance), verify scores persist to rag_query_documents with rank.
+      - AC5: Test ContextWindowManager.pruneToTokenLimit() with various doc sizes, verify truncation at 8K token budget, test separator insertion.
+      - AC6: Test metadata filtering with {module: "ar"}, {fiscalPeriod: "2024-10"}, compound filters, verify JSONB @> operator.
+      - AC7: Test query logging to rag_queries table, verify immutable timestamps, test append-only constraint, verify user_id/company_id captured.
+      - AC8: Test P95 latency ≤ 1500ms with k6 load test (20 concurrent users, 100K docs), verify Prometheus metrics emitted (rag_query_latency_seconds).
+      - AC9: Test Vietnamese queries ("Khách hàng nào còn nợ?"), verify UTF-8 handling, test relevance scores for top-10 results.
+      - AC10: Test response DTO structure, verify query_id, retrieved_documents array, grounded_context concatenation, latency breakdown.
+    </ideas>
+  </tests>
+</story-context>

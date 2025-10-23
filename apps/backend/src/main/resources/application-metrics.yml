@@ -1,0 +1,37 @@
+# Metrics and Monitoring Configuration for RAG Query Pipeline
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: accounting-erp-rag
+      module: rag-query-pipeline
+    distribution:
+      percentiles-histogram:
+        rag.stage.latency.seconds: true
+        http.server.requests: true
+      percentiles:
+        rag.stage.latency.seconds: 0.5, 0.95, 0.99
+        http.server.requests: 0.5, 0.95, 0.99
+    export:
+      prometheus:
+        enabled: true
+        step: 1m
+        descriptions: true
+
+# Logging configuration for observability
+logging:
+  level:
+    com.erp.rag.ragplatform: INFO
+    com.erp.rag.ragplatform.service.QueryOrchestrationService: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

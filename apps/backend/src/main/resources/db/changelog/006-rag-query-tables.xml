@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <!--
+    Story 1.5 - AC7: Create rag_queries and rag_query_documents tables for query audit trail
+    Purpose: Immutable query logging for compliance (10-year retention per Circular 200)
+    -->
+
+    <changeSet id="006-create-rag-queries-table" author="dev-agent">
+        <createTable tableName="rag_queries" schemaName="accounting">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="company_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+            <column name="query_text" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="query_embedding" type="vector(1536)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="language" type="VARCHAR(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="pending">
+                <constraints nullable="false"/>
+            </column>
+            <column name="llm_provider" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="retrieval_latency_ms" type="INTEGER">
+                <constraints nullable="true"/>
+            </column>
+            <column name="generation_latency_ms" type="INTEGER">
+                <constraints nullable="true"/>
+            </column>
+            <column name="total_latency_ms" type="INTEGER">
+                <constraints nullable="true"/>
+            </column>
+            <column name="error_message" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="completed_at" type="TIMESTAMP WITH TIME ZONE">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addCheckConstraint tableName="rag_queries" schemaName="accounting"
+                            constraintName="rag_queries_language_check"
+                            checkCondition="language IN ('vi', 'en')"/>
+
+        <addCheckConstraint tableName="rag_queries" schemaName="accounting"
+                            constraintName="rag_queries_status_check"
+                            checkCondition="status IN ('pending', 'streaming', 'complete', 'error')"/>
+
+        <createIndex tableName="rag_queries" schemaName="accounting"
+                     indexName="idx_rag_queries_company_user">
+            <column name="company_id"/>
+            <column name="user_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex tableName="rag_queries" schemaName="accounting"
+                     indexName="idx_rag_queries_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="006-create-rag-query-documents-table" author="dev-agent">
+        <createTable tableName="rag_query_documents" schemaName="accounting">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="query_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_rag_query_documents_query"
+                             referencedTableSchemaName="accounting"
+                             referencedTableName="rag_queries"
+                             referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <column name="document_vector_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_rag_query_documents_vector"
+                             referencedTableSchemaName="accounting"
+                             referencedTableName="vector_documents"
+                             referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <column name="rank" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="relevance_score" type="DOUBLE PRECISION">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tokens_used" type="INTEGER">
+                <constraints nullable="true"/>
+            </column>
+            <column name="excerpt" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addCheckConstraint tableName="rag_query_documents" schemaName="accounting"
+                            constraintName="rag_query_documents_relevance_check"
+                            checkCondition="relevance_score >= 0.0 AND relevance_score <= 1.0"/>
+
+        <addUniqueConstraint tableName="rag_query_documents" schemaName="accounting"
+                             columnNames="query_id, document_vector_id"
+                             constraintName="uq_rag_query_documents_query_doc"/>
+
+        <createIndex tableName="rag_query_documents" schemaName="accounting"
+                     indexName="idx_rag_query_documents_query">
+            <column name="query_id"/>
+        </createIndex>
+
+        <createIndex tableName="rag_query_documents" schemaName="accounting"
+                     indexName="idx_rag_query_documents_document">
+            <column name="document_vector_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

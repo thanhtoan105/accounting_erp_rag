@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Story 1.4 - AC9: embedding_batches table for tracking pipeline runs -->
+    <changeSet id="005-1-create-embedding-batches-table" author="dev-agent">
+        <comment>
+            Create embedding_batches table to track embedding generation pipeline runs.
+            Includes status state machine (queued, running, failed, complete), counts,
+            timestamps, triggered_by, and hash to prevent duplicate processing.
+        </comment>
+
+        <createTable tableName="embedding_batches" schemaName="accounting">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="company_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="batch_type" type="VARCHAR(20)">
+                <constraints nullable="false"
+                             checkConstraint="batch_type IN ('full', 'incremental', 'manual')"/>
+            </column>
+
+            <column name="status" type="VARCHAR(20)">
+                <constraints nullable="false"
+                             checkConstraint="status IN ('queued', 'running', 'failed', 'complete')"/>
+            </column>
+
+            <column name="total_documents" type="INTEGER"/>
+
+            <column name="processed_documents" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="failed_documents" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="started_at" type="TIMESTAMPTZ"/>
+
+            <column name="completed_at" type="TIMESTAMPTZ"/>
+
+            <column name="error_message" type="TEXT"/>
+
+            <column name="triggered_by" type="VARCHAR(255)" remarks="User, system, or n8n webhook identifier"/>
+
+            <column name="batch_hash" type="VARCHAR(64)" remarks="Hash of batch parameters to prevent duplicate processing"/>
+
+            <column name="metadata" type="JSONB" defaultValueComputed="'{}'::jsonb" remarks="Flexible metadata: API costs, throughput metrics, table filters, etc."/>
+
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            COMMENT ON TABLE accounting.embedding_batches IS 'Tracks embedding generation pipeline runs with status state machine, document counts, error tracking, and metadata for observability';
+        </sql>
+    </changeSet>
+
+    <!-- Indexes for performance -->
+    <changeSet id="005-2-create-embedding-batches-indexes" author="dev-agent">
+        <createIndex indexName="idx_embedding_batches_company_id"
+                     tableName="embedding_batches"
+                     schemaName="accounting">
+            <column name="company_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex indexName="idx_embedding_batches_status"
+                     tableName="embedding_batches"
+                     schemaName="accounting">
+            <column name="status"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex indexName="idx_embedding_batches_batch_type"
+                     tableName="embedding_batches"
+                     schemaName="accounting">
+            <column name="batch_type"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex indexName="idx_embedding_batches_batch_hash"
+                     tableName="embedding_batches"
+                     schemaName="accounting">
+            <column name="batch_hash"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Trigger for updated_at timestamp -->
+    <changeSet id="005-3-create-embedding-batches-trigger" author="dev-agent">
+        <sql>
+            CREATE TRIGGER update_embedding_batches_timestamp
+                BEFORE UPDATE ON accounting.embedding_batches
+                FOR EACH ROW
+                EXECUTE FUNCTION accounting.update_updated_at_column();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS update_embedding_batches_timestamp ON accounting.embedding_batches;
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
+

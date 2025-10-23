@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <changeSet id="003-0-create-updated-at-function" author="dev-agent" runOnChange="true">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM pg_proc p
+                JOIN pg_namespace n ON p.pronamespace = n.oid
+                WHERE n.nspname = 'accounting'
+                  AND p.proname = 'set_updated_at';
+            </sqlCheck>
+        </preConditions>
+
+        <comment>
+            Create trigger function to automatically update updated_at timestamp.
+            Story 1.3: AC2 - Audit timestamp management.
+            MUST run before table creation that uses this function.
+        </comment>
+
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION accounting.set_updated_at()
+            RETURNS TRIGGER AS $BODY$
+            BEGIN
+                NEW.updated_at = now();
+                RETURN NEW;
+            END;
+            $BODY$ LANGUAGE plpgsql;
+
+            COMMENT ON FUNCTION accounting.set_updated_at() IS 'Trigger function to set updated_at to current timestamp on UPDATE';
+        </sql>
+    </changeSet>
+
+    <changeSet id="003-1-create-vector-documents-table" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists schemaName="accounting" tableName="vector_documents"/>
+            </not>
+        </preConditions>
+
+        <comment>
+            Create vector_documents table for storing embeddings with multi-tenant partitioning.
+            Story 1.3: AC2 - Vector storage with company isolation, metadata filtering, soft deletes.
+        </comment>
+
+        <sql>
+            CREATE TABLE accounting.vector_documents (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                company_id UUID NOT NULL,
+                document_id UUID NOT NULL,
+                source_table TEXT NOT NULL,
+                source_id UUID NOT NULL,
+                fiscal_period TEXT,
+                content_tsv TSVECTOR,
+                embedding VECTOR(1536) NOT NULL,
+                metadata JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                deleted_at TIMESTAMPTZ,
+                CONSTRAINT fk_vector_documents_company FOREIGN KEY (company_id)
+                    REFERENCES accounting.companies(id) ON DELETE CASCADE
+            );
+
+            -- Composite index for tenant isolation + soft delete filtering
+            CREATE INDEX idx_vector_documents_company_deleted
+                ON accounting.vector_documents(company_id, deleted_at)
+                WHERE deleted_at IS NULL;
+
+            -- Index for source tracking
+            CREATE INDEX idx_vector_documents_source
+                ON accounting.vector_documents(source_table, source_id, deleted_at)
+                WHERE deleted_at IS NULL;
+
+            -- Index for fiscal period filtering
+            CREATE INDEX idx_vector_documents_fiscal_period
+                ON accounting.vector_documents(company_id, fiscal_period, deleted_at)
+                WHERE deleted_at IS NULL;
+
+            -- GIN index for metadata JSONB filtering
+            CREATE INDEX idx_vector_documents_metadata
+                ON accounting.vector_documents USING GIN(metadata jsonb_path_ops);
+
+            -- Full-text search index for content_tsv
+            CREATE INDEX idx_vector_documents_content_tsv
+                ON accounting.vector_documents USING GIN(content_tsv)
+                WHERE deleted_at IS NULL;
+
+            -- Add updated_at trigger
+            CREATE TRIGGER set_updated_at_vector_documents
+                BEFORE UPDATE ON accounting.vector_documents
+                FOR EACH ROW
+                EXECUTE FUNCTION accounting.set_updated_at();
+
+            COMMENT ON TABLE accounting.vector_documents IS 'Stores vector embeddings for semantic search with multi-tenant isolation';
+            COMMENT ON COLUMN accounting.vector_documents.embedding IS 'Vector embedding (1536 dimensions for OpenAI text-embedding-3-small)';
+            COMMENT ON COLUMN accounting.vector_documents.metadata IS 'JSONB metadata for filtering (module, document_type, tags, etc.)';
+            COMMENT ON COLUMN accounting.vector_documents.content_tsv IS 'Full-text search vector for hybrid retrieval';
+            COMMENT ON COLUMN accounting.vector_documents.fiscal_period IS 'Format: YYYY-MM (e.g., 2024-10) for period-based filtering';
+        </sql>
+    </changeSet>
+
+    <changeSet id="003-2-create-vector-hnsw-index" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM pg_indexes
+                WHERE schemaname = 'accounting'
+                  AND tablename = 'vector_documents'
+                  AND indexname = 'idx_vector_documents_embedding_hnsw';
+            </sqlCheck>
+        </preConditions>
+
+        <comment>
+            Create HNSW index for fast approximate nearest neighbor search using cosine distance.
+            Story 1.3: AC3 - Performance optimization for vector retrieval (P95 &lt;= 1500ms).
+            Parameters tuned for 100K vectors:
+            - m=16: number of bi-directional links (trade-off: recall vs build time)
+            - ef_construction=64: search candidates during build (higher = better recall, slower build)
+        </comment>
+
+        <sql>
+            CREATE INDEX idx_vector_documents_embedding_hnsw
+                ON accounting.vector_documents
+                USING hnsw (embedding vector_cosine_ops)
+                WITH (m = 16, ef_construction = 64)
+                WHERE deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="003-3-enable-rls-vector-documents" author="dev-agent">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM pg_policies
+                WHERE schemaname = 'accounting'
+                  AND tablename = 'vector_documents'
+                  AND policyname = 'vector_documents_tenant_isolation';
+            </sqlCheck>
+        </preConditions>
+
+        <comment>
+            Enable Row Level Security (RLS) for multi-tenant isolation.
+            Story 1.3: AC2 - Tenant isolation via RLS policies.
+        </comment>
+
+        <sql>
+            -- Enable RLS (idempotent operation)
+            ALTER TABLE accounting.vector_documents ENABLE ROW LEVEL SECURITY;
+
+            -- Policy: authenticated users can only see vectors from their company
+            CREATE POLICY vector_documents_tenant_isolation
+                ON accounting.vector_documents
+                FOR SELECT
+                USING (
+                    company_id IN (
+                        SELECT company_id
+                        FROM accounting.user_profiles
+                        WHERE user_id = auth.uid()
+                    )
+                );
+
+            -- Policy: service role has full access (for admin operations)
+            CREATE POLICY vector_documents_service_role_access
+                ON accounting.vector_documents
+                FOR ALL
+                TO service_role
+                USING (true)
+                WITH CHECK (true);
+
+            -- Grant necessary permissions
+            GRANT SELECT, INSERT, UPDATE ON accounting.vector_documents TO authenticated;
+            GRANT ALL ON accounting.vector_documents TO service_role;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
+

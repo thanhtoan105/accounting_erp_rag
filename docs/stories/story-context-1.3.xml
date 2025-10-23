@@ -1,0 +1,204 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.3</storyId>
+    <title>Vector Database Setup (Supabase Vector)</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-20</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.3.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>platform engineer building the Core RAG foundation</asA>
+    <iWant>configure Supabase pgvector with tuned schemas, indexes, and operational runbooks</iWant>
+    <soThat>vector retrieval meets latency, compliance, and resilience targets for downstream RAG stories</soThat>
+    <tasks>
+      - Enable pgvector extension across environments (AC1)
+        * Confirm `CREATE EXTENSION IF NOT EXISTS vector;` in Liquibase migration and verify via Supabase SQL editor. (AC1)
+        * Update environment checklist to ensure pgvector remains active after Supabase upgrades. (AC1)
+      - Implement vector schema and migrations (AC2)
+        * Add Liquibase changelog for `vector_documents` with partitioning strategy and supporting indexes. (AC2)
+        * Create DAO/repository in `supabase-gateway` for vector access with tenant scoping. (AC2/AC6)
+        * Unit-test migrations via Testcontainers to validate schema/partition creation. (AC2)
+      - Tune indexes and measure performance (AC3, AC7)
+        * Load synthetic 10K/50K/100K embeddings and record cosine retrieval metrics. (AC3)
+        * Adjust HNSW/IVFFlat parameters (`m`, `ef_construction`, `ef_search`) until P95 ≤ 1500 ms; document settings. (AC3/AC7)
+        * Add automated benchmark script (JUnit or k6) to CI for regression tracking. (AC7)
+      - Validate metadata filtering and backups (AC4, AC5)
+        * Populate metadata samples and confirm filtering queries for module, fiscal period, and document type. (AC4)
+        * Draft backup/restore runbook including Supabase PITR and CSV export steps. (AC5/AC8)
+        * Execute test restore into sandbox to ensure vectors and metadata remain consistent. (AC5)
+      - Integrate pooling, monitoring, and alerts (AC6, AC7, AC8)
+        * Extend `supabase-gateway` to expose vector connection pool metrics and health checks. (AC6/AC7)
+        * Wire Prometheus/Grafana dashboards or Supabase logs to track retrieval latency, index size, recall. (AC7)
+        * Update operational runbook with alert thresholds, rebuild procedures, and troubleshooting guidance. (AC8)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">Supabase project has pgvector extension enabled and verified in staging and pilot environments.</criterion>
+    <criterion id="AC2">`vector_documents` schema created with columns: `id`, `document_id`, `company_id`, `embedding VECTOR(1536)`, `metadata JSONB`, `created_at`, `updated_at`, `deleted_at`, plus supporting indexes for tenant isolation.</criterion>
+    <criterion id="AC3">HNSW (or IVFFlat) index configured for cosine similarity; benchmarking across 10K, 50K, 100K documents recorded with P95 latency ≤ 1500 ms for top-10 retrieval.</criterion>
+    <criterion id="AC4">Metadata filtering validated for module, fiscal period, and document type fields with representative query examples documented.</criterion>
+    <criterion id="AC5">Backup and restore approach for vector tables documented, including Supabase PITR usage and export scripts.</criterion>
+    <criterion id="AC6">Connection pooling established for vector workloads via `supabase-gateway`, sharing health checks and retry logic with existing Postgres connections.</criterion>
+    <criterion id="AC7">Metrics for retrieval latency, index size, and recall recorded in observability dashboards with alert thresholds aligned to NFR-1 and NFR-8.</criterion>
+    <criterion id="AC8">Runbook updated to include operational steps for index rebuilds, scaling configuration, and troubleshooting slow queries.</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs><doc>
+  <path>docs/epics.md</path>
+  <title>Epic &amp; Story Breakdown</title>
+  <section>E1-S3 Vector Database Setup</section>
+  <snippet>Configure Supabase Vector (pgvector) for semantic search with tuned tables, indexes, and latency benchmarks (P95 &lt; 1500ms).</snippet>
+</doc>
+      <doc>
+  <path>docs/tech-spec-epic-1.md</path>
+  <title>Technical Specification: Core RAG Pipeline and Infrastructure</title>
+  <section>Data Models and Contracts</section>
+  <snippet>`vector_documents` stores embeddings with company_id partitioning, metadata JSONB, soft deletes, and audit timestamps.</snippet>
+</doc>
+      <doc>
+  <path>docs/solution-architecture.md</path>
+  <title>Solution Architecture</title>
+  <section>Architecture Pattern Determination</section>
+  <snippet>Supabase PostgreSQL/vector underpins the modular Spring Boot stack with async workers for ingestion and observability-first design.</snippet>
+</doc>
+      <doc>
+  <path>docs/solution-architecture.md</path>
+  <title>Solution Architecture</title>
+  <section>DevOps and CI/CD</section>
+  <snippet>Observability via Prometheus + Grafana with runbooks in /infra/observability/runbooks; Terraform + GitHub Actions manage deployments.</snippet>
+</doc>
+      <doc>
+  <path>docs/PRD.md</path>
+  <title>Product Requirements Document</title>
+  <section>FR-9.1 Core RAG Pipeline Infrastructure</section>
+  <snippet>Vector database integration requires Supabase Vector with optimized embedding dimensions, partitioning, and incremental updates.</snippet>
+</doc>
+      <doc>
+  <path>docs/cohesion-check-report.md</path>
+  <title>Cohesion Check Report</title>
+  <section>Open Recommendations</section>
+  <snippet>Finalize monitoring stack (Sentry + Prometheus/Grafana) and validate pgvector recall before adding external search.</snippet>
+</doc>
+      <doc>
+  <path>docs/security-approach.md</path>
+  <title>Security Approach</title>
+  <section>Scan Targets</section>
+  <snippet>Security scans must include vector_documents.content_tsv to ensure pgvector indices do not expose sensitive text.</snippet>
+</doc>
+      <doc>
+  <path>docs/stories/story-1.2.md</path>
+  <title>Story 1.2 Completion Notes</title>
+  <section>Out-of-Scope Tasks</section>
+  <snippet>PII masking follow-ups defer embedding-worker integration until vector database setup (Story 1.3) is ready.</snippet>
+</doc></docs>
+    <code><artifact>
+        <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/config/SupabaseGatewayConfiguration.java</path>
+        <kind>configuration</kind>
+        <symbol>SupabaseGatewayConfiguration</symbol>
+        <lines>1-120</lines>
+        <reason>Existing read-only HikariCP pool and RetryTemplate wiring; vector-specific DAO should reuse this DataSource and retry policies.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/schema/SchemaDocumentationService.java</path>
+        <kind>service</kind>
+        <symbol>SchemaDocumentationService</symbol>
+        <lines>1-150</lines>
+        <reason>Demonstrates metadata extraction via JDBC; vector schema migrations should follow the same metadata validation patterns.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/shared/supabase-gateway/src/test/java/com/erp/rag/supabase/config/SupabaseGatewayConfigurationTest.java</path>
+        <kind>test</kind>
+        <symbol>SupabaseGatewayConfigurationTest</symbol>
+        <lines>1-140</lines>
+        <reason>Verifies pooling and read-only enforcement; extend with vector connection tests once new DAO is introduced.</reason>
+      </artifact></code>
+    <dependencies><java>
+        <dependency name="Spring Boot" version="3.2.5" />
+        <dependency name="Spring Retry" version="3.1.7" />
+        <dependency name="HikariCP" version="5.1.0" />
+        <dependency name="Micrometer Prometheus Registry" version="latest" />
+        <dependency name="PostgreSQL JDBC Driver" version="42.7.3" />
+        <dependency name="Testcontainers Postgres" version="1.19.6" />
+      </java>
+      <database>
+        <dependency name="Supabase PostgreSQL" version="15.x" />
+        <dependency name="pgvector extension" version="latest" />
+      </database>
+      <tooling>
+        <dependency name="Liquibase" version="4.27.0" />
+        <dependency name="k6" version="latest" />
+      </tooling>
+    </dependencies>
+  </artifacts>
+
+  <constraints><constraint category="architecture">
+      Maintain `vector_documents` schema and partition strategy defined in docs/tech-spec-epic-1.md (company_id + fiscal period) using Liquibase migrations under apps/backend/src/main/resources/db/changelog/.
+    </constraint>
+    <constraint category="data">
+      All pgvector operations must reuse the existing SupabaseGatewayConfiguration DataSource and retry template; no ad-hoc JDBC pools.
+    </constraint>
+    <constraint category="performance">
+      Retrieval benchmarks must demonstrate P95 ≤ 1500 ms for top-10 results at 10K/50K/100K vectors before promoting to pilot (docs/epics.md#E1-S3).
+    </constraint>
+    <constraint category="observability">
+      Expose Micrometer metrics for retrieval latency, index size, and recall; wire into Prometheus/Grafana dashboards per docs/solution-architecture.md#DevOps and CI/CD.
+    </constraint>
+    <constraint category="compliance">
+      Document backup/restore procedures including Supabase PITR and CSV export, following PRD FR-9.1 and runbook expectations in /infra/observability.
+    </constraint>
+    <constraint category="security">
+      Include vector_documents.content_tsv in security scans to prevent sensitive text exposure (docs/security-approach.md#Scan Targets).
+    </constraint></constraints>
+  <interfaces><interface>
+      <name>vector_documents Table</name>
+      <kind>Database Table</kind>
+      <signature>CREATE TABLE accounting.vector_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL,
+  document_id UUID NOT NULL,
+  source_table TEXT NOT NULL,
+  source_id UUID NOT NULL,
+  fiscal_period TEXT,
+  content_tsv TSVECTOR,
+  embedding VECTOR(1536) NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ
+);</signature>
+      <path>apps/backend/src/main/resources/db/changelog/</path>
+    </interface>
+    <interface>
+      <name>SupabaseGatewayConfiguration</name>
+      <kind>Spring Configuration</kind>
+      <signature>RetryTemplate supabaseRetryTemplate();
+ReadOnlyValidator readOnlyValidator(DataSource dataSource) throws SQLException;</signature>
+      <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/config/SupabaseGatewayConfiguration.java</path>
+    </interface>
+    <interface>
+      <name>SchemaDocumentationService</name>
+      <kind>Service</kind>
+      <signature>SchemaDocumentation generateDocumentation(String schemaName) throws SQLException;
+ValidationResult validateCriticalTables(String schemaName, List&lt;String&gt; criticalTables) throws SQLException;</signature>
+      <path>packages/shared/supabase-gateway/src/main/java/com/erp/rag/supabase/schema/SchemaDocumentationService.java</path>
+    </interface></interfaces>
+  <tests>
+    <standards>Use JUnit 5 with Testcontainers Postgres to validate Liquibase migrations, vector search latency, and connection pooling; integrate k6 scripts for load benchmarks and feed Micrometer metrics into Prometheus for regression gating.</standards>
+    <locations>- apps/backend/src/test/java
+      - packages/shared/supabase-gateway/src/test/java
+      - scripts/prep-sprint</locations>
+    <ideas><testIdea criteriaId="AC1">Liquibase migration test ensures CREATE EXTENSION vector executes and pgvector functions are available in staging schema.</testIdea>
+      <testIdea criteriaId="AC2">Integration test loads sample records then queries vector_documents metadata to verify partition columns and soft deletes.</testIdea>
+      <testIdea criteriaId="AC3">Performance harness ingests 10K/50K/100K embeddings and measures cosine search P95 against 1500 ms budget.</testIdea>
+      <testIdea criteriaId="AC4">Metadata-filter test queries by module and fiscal_period filters to ensure HNSW index respects WHERE clauses.</testIdea>
+      <testIdea criteriaId="AC5">Restore test uses Supabase PITR snapshot to new database and compares vector count + hash totals pre/post restore.</testIdea>
+      <testIdea criteriaId="AC6">Connection pooling test leverages SupabaseGatewayConfiguration to assert vector DAO reuses same RetryTemplate under load.</testIdea>
+      <testIdea criteriaId="AC7">Micrometer metrics test asserts retrieval_latency_p95 and recall gauges emit to Prometheus after benchmark run.</testIdea>
+      <testIdea criteriaId="AC8">Runbook automation test triggers simulated index rebuild failure and checks documented escalation steps executed.</testIdea></ideas>
+  </tests>
+</story-context>

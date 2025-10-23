@@ -1,0 +1,296 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.4</storyId>
+    <title>Document Embedding Generation Pipeline</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.4.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>platform engineer building the Core RAG pipeline</asA>
+    <iWant>implement a scalable embedding generation worker that extracts ERP documents, applies PII masking, generates Vietnamese/English-aware vector embeddings, and persists them with rich metadata</iWant>
+    <soThat>downstream retrieval stories can search semantic content with compliance and performance targets met</soThat>
+    <tasks>- Pre-implementation coordination (Critical)
+      * Schedule Story 1.2 sync on PiiMaskingService contract, incremental/full indexing state machine review, and N8N secret provisioning.
+      * Draft ADR-006 capturing Azure OpenAI decision rationale, cost model, and fallback path.
+    - Document extraction &amp; text preparation (AC1, AC2)
+      * Build DocumentExtractor DAOs per document type and unit-test with mocked Supabase data.
+      * Ship Vietnamese-aware text templates ensuring UTF-8 diacritics and optional field omission pass QA suites.
+    - Embedding generation &amp; throughput (AC3, AC4)
+      * Implement EmbeddingService batching ≤100 docs with retry/cost tracking and assert vector dimension 1536.
+      * Run synthetic-load benchmark proving 10 K docs &lt;30 min and progress logs every 1 000 items.
+    - PII masking integration (AC5)
+      * Wire Story 1.2 masking before text concat, codify per-document-type masking rules, and enforce &lt;100 ms latency budget.
+      * Add regex-based leak scanner so embeddings/logs contain only tokenized identifiers.
+    - Metadata persistence &amp; batch ledger (AC6, AC9)
+      * Normalize document_type/module/fiscal_period/status into vector_documents.metadata JSONB using ON CONFLICT upsert semantics.
+      * Create embedding_batches migration/state machine with counts, timestamps, triggered_by, and duplicate hash prevention.
+    - Worker orchestration &amp; triggers (AC8)
+      * Stand up embedding-worker Spring profile, secured `/internal/rag/index-batch` endpoint, and signed n8n webhook handler.
+      * Document deployment settings (CPU/memory, parallelism, restart policies) for async jobs.
+    - Error handling &amp; observability (AC7, AC10)
+      * Implement retry taxonomy (transient/permanent/critical) with structured logging + Slack alerts when error_rate &gt;5 %.
+      * Emit OpenTelemetry spans and Prometheus metrics (embeddings_generated_total, embedding_latency_seconds, embedding_errors_total).
+    - Synthetic test data (AC4 support)
+      * Generate Faker-driven Vietnamese accounting dataset (10 K docs) with scripts/seed-data assets for repeatable performance tests.</tasks>
+  </story>
+
+  <acceptanceCriteria><criterion id="AC1">Document extraction logic implemented for all target document types: invoices (AR), bills (AP), customers, vendors, journal entries, payments, and bank transactions via supabase-gateway DAOs. [Source: docs/epics.md#E1-S4]</criterion>
+    <criterion id="AC2">Text preparation templates concatenate relevant fields (description, amounts, dates, account codes, customer/vendor names) per document type with Vietnamese diacritics and UTF-8 encoding preserved. [Source: docs/epics.md#E1-S4]</criterion>
+    <criterion id="AC3">Embedding generation uses OpenAI text-embedding-3-large or sentence-transformers model with batched API calls (≤100 docs per batch) to control costs and respect rate limits. [Source: docs/epics.md#E1-S4; docs/tech-spec-epic-1.md#Dependencies and Integrations]</criterion>
+    <criterion id="AC4">Batch processing handles 10K documents in &lt;30 minutes with progress logged every 1000 docs and throughput metrics captured (target: ≥200 documents/minute). [Source: docs/epics.md#E1-S4]</criterion>
+    <criterion id="AC5">PII masking integration: before embedding generation, apply Story 1.2 masking service to anonymize customer names, tax IDs, phone numbers, emails per non-production requirements. [Source: docs/tech-spec-epic-1.md#Document Ingestion &amp; Embedding; docs/epics.md#E1-S2]</criterion>
+    <criterion id="AC6">Metadata extraction normalizes and persists document_type (invoice, payment, journal_entry, etc.), fiscal_period, module (ar, ap, gl, cash_bank), and status fields into vector_documents.metadata JSONB. [Source: docs/epics.md#E1-S4; docs/tech-spec-epic-1.md#Data Models and Contracts]</criterion>
+    <criterion id="AC7">Error handling skips malformed documents (missing required fields, invalid encoding) with detailed error logs, retries transient API failures (3x exponential backoff), and tracks error counts in embedding_batches. [Source: docs/epics.md#E1-S4; docs/tech-spec-epic-1.md#Document Ingestion &amp; Embedding]</criterion>
+    <criterion id="AC8">embedding-worker Spring Boot profile (async job) triggered via n8n webhook or manual REST endpoint (/internal/rag/index-batch) with batch_type (full | incremental) parameter. [Source: docs/tech-spec-epic-1.md#Services and Modules; docs/tech-spec-epic-1.md#APIs and Interfaces]</criterion>
+    <criterion id="AC9">embedding_batches table tracks pipeline runs with status (queued, running, failed, complete), started_at, completed_at, doc_count, error_count, and hash to prevent duplicate processing. [Source: docs/tech-spec-epic-1.md#Data Models and Contracts]</criterion>
+    <criterion id="AC10">Telemetry: emit OpenTelemetry spans for batch lifecycle, expose Prometheus metrics (embeddings_generated_total, embedding_latency_seconds, embedding_errors_total), and post completion/failure status to Slack. [Source: docs/tech-spec-epic-1.md#Document Ingestion &amp; Embedding; docs/tech-spec-epic-1.md#Observability]</criterion></acceptanceCriteria>
+
+  <artifacts>
+    <docs><doc>
+  <path>docs/epics.md</path>
+  <title>Epic &amp; Story Breakdown</title>
+  <section>E1-S4: Document Embedding Generation Pipeline</section>
+  <snippet>Implement pipeline to extract documents from ERP, generate vector embeddings using domain-optimized models (supporting Vietnamese and English), and store in vector database. Handle batch and incremental processing. Embedding API rate limits: OpenAI 3000 RPM → batch requests.</snippet>
+</doc>
+      <doc>
+  <path>docs/PRD.md</path>
+  <title>Product Requirements Document</title>
+  <section>FR-9.1: Core RAG Pipeline Infrastructure</section>
+  <snippet>Document indexing pipeline: Automatically extract and index invoices, vouchers, journal entries, customer/vendor records, and bank transactions from ERP PostgreSQL database. Vector database integration: Configure Supabase Vector (pgvector) for semantic search with optimized embedding dimensions and distance metrics. Embedding generation: Generate vector embeddings for ERP documents using domain-optimized models, handling Vietnamese and English text.</snippet>
+</doc>
+      <doc>
+  <path>docs/tech-spec-epic-1.md</path>
+  <title>Technical Specification: Core RAG Pipeline and Infrastructure</title>
+  <section>Document Ingestion &amp; Embedding (n8n + embedding-worker)</section>
+  <snippet>n8n cron triggers embedding-worker with batchType=full|incremental. Worker pulls candidate ERP records via supabase-gateway, applying deterministic PII masking and content templates scoped by module. Batched payloads (≤100 docs) sent to llm-provider-adapter.embed(); responses persisted to vector_documents and embedding_batches.</snippet>
+</doc>
+      <doc>
+  <path>docs/tech-spec-epic-1.md</path>
+  <title>Technical Specification: Core RAG Pipeline and Infrastructure</title>
+  <section>Data Models and Contracts</section>
+  <snippet>embedding_batches tracks pipeline runs with id UUID, batch_type ENUM('full','incremental'), status ENUM('queued','running','failed','complete'), started_at, completed_at, doc_count INT, error_count INT, hash TEXT. hash prevents duplicate processing; link to logs for troubleshooting.</snippet>
+</doc>
+      <doc>
+  <path>docs/solution-architecture.md</path>
+  <title>Solution Architecture</title>
+  <section>Component Boundaries</section>
+  <snippet>Epic 1 – Core RAG Pipeline &amp; Infrastructure: Secure ERP connectivity, PII masking, vector ingestion, and LLM abstraction. Works on transactional ERP tables, embeddings, and audit metadata. Integrates with Supabase PostgreSQL/vector, LLM providers (via MCP), n8n ingestion workflows, optional Redis.</snippet>
+</doc>
+      <doc>
+  <path>docs/security-approach.md</path>
+  <title>Security Approach: PII Masking and Data Protection</title>
+  <section>Overview</section>
+  <snippet>This document describes the security architecture for PII (Personally Identifiable Information) masking in the AI-native ERP accounting platform. The system implements defense-in-depth principles to protect customer names, tax IDs, phone numbers, emails, and addresses throughout the data lifecycle—from extraction through embedding generation to query responses.</snippet>
+</doc>
+      <doc>
+  <path>docs/stories/story-1.2.md</path>
+  <title>Story 1.2: PII Masking and Data Anonymization</title>
+  <section>Acceptance Criteria</section>
+  <snippet>PII fields identified across all ERP tables (name, tax_id, phone, email, address) with comprehensive mapping stored in project documentation; masking rules implemented for each PII field type using deterministic hashing for customer/vendor IDs to allow joins without exposing PII. Tokenization strategy implemented for linking records without exposing PII, using mask patterns (names → "Customer_12345", tax_ids → "TAX_*****1234") with original → masked mapping stored in protected Supabase schema (pii_mask_map table) for production audit trail.</snippet>
+</doc>
+      <doc>
+  <path>docs/stories/story-1.3.md</path>
+  <title>Story 1.3: Vector Database Setup (Supabase Vector)</title>
+  <section>Acceptance Criteria</section>
+  <snippet>`vector_documents` schema created with columns: `id`, `document_id`, `company_id`, `embedding VECTOR(1536)`, `metadata JSONB`, `created_at`, `updated_at`, `deleted_at`, plus supporting indexes for tenant isolation. HNSW (or IVFFlat) index configured for cosine similarity; benchmarking across 10K, 50K, 100K documents recorded with P95 latency ≤ 1500 ms for top-10 retrieval.</snippet>
+</doc>
+      <doc>
+  <path>docs/connection-pool-configuration-story-1.3.md</path>
+  <title>Connection Pool Configuration for Vector Workloads</title>
+  <section>Executive Summary</section>
+  <snippet>The accounting ERP RAG platform uses HikariCP as the connection pooling solution for PostgreSQL vector workloads. The pool is configured for lightweight, high-concurrency vector similarity queries with minimum idle connections 2, maximum pool size 10, and 30 second connection timeout. Leak detection threshold is 60 seconds and the initialization SQL sets search_path to public,extensions,accounting.</snippet>
+</doc>
+      <doc>
+  <path>docs/performance-benchmark-report-story-1.3.md</path>
+  <title>Vector Database Performance Benchmark Report</title>
+  <section>Executive Summary</section>
+  <snippet>All performance targets achieved: P95 latency target ≤ 1500ms, P99 latency target ≤ 3000ms, best performance 100K vectors @ 343ms P95. Optimal ef_search: 10 (lowest latency).</snippet>
+</doc>
+    </docs>
+    <code><artifact>
+        <path>apps/backend/src/main/resources/db/changelog/003-vector-documents-table.xml</path>
+        <kind>liquibase-changeset</kind>
+        <symbol>changeSet 003-1-create-vector-documents-table</symbol>
+        <lines>24-112</lines>
+        <reason>Defines accounting.vector_documents with tenant-scoped keys, metadata JSONB, and updated_at trigger—baseline storage needed for AC6 and AC9.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/resources/db/changelog/003-vector-documents-table.xml</path>
+        <kind>liquibase-changeset</kind>
+        <symbol>changeSet 003-2-create-vector-hnsw-index</symbol>
+        <lines>113-142</lines>
+        <reason>Creates idx_vector_documents_embedding_hnsw using m=16/ef_construction=64 and deleted_at filter to meet AC4 throughput targets.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/resources/db/changelog/002-pii-masking-tables.xml</path>
+        <kind>liquibase-changeset</kind>
+        <symbol>changeSet 002-1-create-pii-mask-map-table</symbol>
+        <lines>6-66</lines>
+        <reason>Provides pii_mask_map schema and indexes ensuring deterministic masking lookup for AC5 integration.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/resources/db/changelog/002-pii-masking-tables.xml</path>
+        <kind>liquibase-changeset</kind>
+        <symbol>changeSet 002-3-create-unmask-pii-function</symbol>
+        <lines>96-160</lines>
+        <reason>Supplies unmask_pii() PL/pgSQL function with audit logging; embedding-worker must honor its service-role restrictions when handling failures (AC7).</reason>
+      </artifact>
+      <artifact>
+        <path>apps/backend/src/main/resources/application.properties</path>
+        <kind>config</kind>
+        <symbol>spring.datasource.hikari.*</symbol>
+        <lines>15-48</lines>
+        <reason>HikariCP pool, retry, and search_path defaults that the embedding-worker profile should reuse instead of defining new connection settings (AC8).</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/prep-sprint/search-functions.sql</path>
+        <kind>sql-function</kind>
+        <symbol>accounting.search_similar_documents</symbol>
+        <lines>1-42</lines>
+        <reason>Existing HNSW query function demonstrates ef_search tuning and tenant filters; reuse patterns for QA harness validating AC4.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/prep-sprint/create-hnsw-index.sql</path>
+        <kind>sql-ddl</kind>
+        <symbol>idx_vector_docs_embedding_hnsw</symbol>
+        <lines>1-37</lines>
+        <reason>Idempotent index creation script with vector_cosine_ops guidance—aligns Liquibase and manual maintenance stories.</reason>
+      </artifact>
+      <artifact>
+        <path>scripts/prep-sprint/embedding-dimension-planner.py</path>
+        <kind>planning-script</kind>
+        <symbol>EmbeddingOption</symbol>
+        <lines>1-90</lines>
+        <reason>Cost/storage estimator for candidate embedding models; informs AC3 selection and ADR-006 deliverable.</reason>
+      </artifact></code>
+    <dependencies><java>
+        <dependency name="Spring Boot" version="3.2.5" />
+        <dependency name="Spring Boot Starter Web" version="3.2.5" />
+        <dependency name="Spring Boot Starter Data JPA" version="3.2.5" />
+        <dependency name="Spring Boot Starter Actuator" version="3.2.5" />
+        <dependency name="Spring Retry" version="3.1.7" />
+        <dependency name="HikariCP" version="5.1.0" />
+        <dependency name="Micrometer Prometheus Registry" version="latest" />
+        <dependency name="spring-dotenv" version="4.0.0" />
+        <dependency name="PostgreSQL JDBC Driver" version="42.7.3" />
+        <dependency name="Liquibase Core" version="4.27.0" />
+        <dependency name="Testcontainers Postgres" version="1.19.6" />
+      </java>
+      <database>
+        <dependency name="Supabase PostgreSQL" version="15.x" />
+        <dependency name="pgvector extension" version="latest" />
+        <dependency name="Supabase Vault" version="latest" />
+      </database>
+      <tooling>
+        <dependency name="n8n Workflow Engine" version="cloud" />
+        <dependency name="Azure OpenAI text-embedding-3-large" version="2024-04-01-preview" />
+        <dependency name="Prometheus / Grafana" version="latest" />
+        <dependency name="Slack Webhook Integrations" version="latest" />
+      </tooling>
+    </dependencies>
+  </artifacts>
+
+  <constraints><constraint category="security">
+      Always invoke Story 1.2 PiiMaskingService before text concatenation and keep masking latency &lt;100 ms per document; treat PiiMaskingException as batch-halting (docs/stories/story-1.4.md Dev Notes 1).
+    </constraint>
+    <constraint category="performance">
+      Batch runs must finish 10 K documents in &lt;30 minutes, log progress every 1 000 docs, and sustain ≥200 docs/minute throughput (Acceptance Criteria 4).
+    </constraint>
+    <constraint category="data">
+      Persist embeddings via `ON CONFLICT (source_table, source_id, company_id)` upsert, populate metadata JSONB (document_type, module, fiscal_period, status), and honor soft deletes set by vector_documents schema (docs/stories/story-1.4.md Tasks AC6).
+    </constraint>
+    <constraint category="workflow">
+      Implement embedding_batches state machine (queued → running → complete/failed) with atomic counts, timestamps, triggered_by, and error audit fields before marking success (Acceptance Criteria 9).
+    </constraint>
+    <constraint category="integration">
+      Reuse SupabaseConnectionPool/Hikari settings and supabase-gateway retry templates; n8n webhook + `/internal/rag/index-batch` endpoint are the only supported triggers (Acceptance Criteria 8, application.properties).
+    </constraint>
+    <constraint category="observability">
+      Emit OpenTelemetry spans, Prometheus metrics (embeddings_generated_total, embedding_latency_seconds, embedding_errors_total), and Slack alerts when error_rate &gt;5 % (Acceptance Criteria 10).
+    </constraint></constraints>
+  <interfaces><interface>
+      <name>vector_documents Table</name>
+      <kind>Database Table</kind>
+      <signature>CREATE TABLE accounting.vector_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL,
+  document_id UUID NOT NULL,
+  source_table TEXT NOT NULL,
+  source_id UUID NOT NULL,
+  fiscal_period TEXT,
+  content_tsv TSVECTOR,
+  embedding VECTOR(1536) NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  deleted_at TIMESTAMPTZ
+);</signature>
+      <path>apps/backend/src/main/resources/db/changelog/003-vector-documents-table.xml</path>
+    </interface>
+    <interface>
+      <name>accounting.search_similar_documents</name>
+      <kind>Database Function</kind>
+      <signature>CREATE OR REPLACE FUNCTION accounting.search_similar_documents(
+    query_embedding vector(1536),
+    company_filter BIGINT DEFAULT NULL,
+    limit_count INTEGER DEFAULT 10
+) RETURNS TABLE (
+    document_id BIGINT,
+    source_table VARCHAR,
+    source_id BIGINT,
+    content_text TEXT,
+    similarity FLOAT
+);</signature>
+      <path>scripts/prep-sprint/search-functions.sql</path>
+    </interface>
+    <interface>
+      <name>unmask_pii</name>
+      <kind>Database Function</kind>
+      <signature>CREATE OR REPLACE FUNCTION unmask_pii(
+    p_masked_value TEXT,
+    p_company_id UUID DEFAULT NULL,
+    p_justification TEXT DEFAULT 'Compliance investigation'
+) RETURNS TABLE (
+    source_table TEXT,
+    source_id UUID,
+    field TEXT,
+    original_hash TEXT,
+    salt_version INT
+);</signature>
+      <path>apps/backend/src/main/resources/db/changelog/002-pii-masking-tables.xml</path>
+    </interface>
+    <interface>
+      <name>accounting.get_embedding_stats</name>
+      <kind>Database Function</kind>
+      <signature>CREATE OR REPLACE FUNCTION accounting.get_embedding_stats()
+RETURNS TABLE (
+    total_documents BIGINT,
+    avg_similarity FLOAT,
+    min_similarity FLOAT,
+    max_similarity FLOAT
+);</signature>
+      <path>scripts/prep-sprint/search-functions.sql</path>
+    </interface></interfaces>
+  <tests>
+    <standards>Use JUnit 5 with Testcontainers Postgres to exercise Liquibase migrations, DAO persistence, and retry logic; pair with scripts/prep-sprint harness for throughput profiling and Python cost estimations; extend observability checks to verify Micrometer + OpenTelemetry exporters emit expected metrics and spans.</standards>
+    <locations>- apps/backend/src/test/java
+      - packages/shared/**/src/test/java
+      - scripts/prep-sprint
+      - docs/performance-benchmark-report-story-1.3.md (baseline data)
+    </locations>
+    <ideas><testIdea criteriaId="AC1">Integration test seeds ERP fixtures for invoices, bills, journal entries, customers, vendors, payments, and bank transactions then verifies DocumentExtractor DAO returns each type via supabase-gateway.</testIdea>
+      <testIdea criteriaId="AC2">Template formatter test uses Vietnamese diacritics sample records to assert UTF-8 output and correct field ordering for every document template.</testIdea>
+      <testIdea criteriaId="AC3">EmbeddingService test mocks Azure OpenAI adapter to confirm batches never exceed 100 docs, validates returned vector dimension 1536, and records cost telemetry per batch.</testIdea>
+      <testIdea criteriaId="AC4">Performance harness runs synthetic 10K dataset through embedding-worker profile measuring wall-clock duration, logs every 1 000 docs, and asserts throughput ≥200 docs/minute.</testIdea>
+      <testIdea criteriaId="AC5">Masking integration test pipes PII-laden fixtures through pipeline then scans embeddings/logs with regex suite ensuring only tokenized values like CUSTOMER_12345 appear.</testIdea>
+      <testIdea criteriaId="AC6">Persistence test upserts mixed document payloads and confirms vector_documents metadata JSONB holds document_type, module, fiscal_period, status, with deleted_at respected.</testIdea>
+      <testIdea criteriaId="AC7">Chaos test injects transient API failures (HTTP 429/500) verifying exponential backoff, retry limits, and embedding_batches.error_count increments with structured log records.</testIdea>
+      <testIdea criteriaId="AC8">Trigger test hits n8n webhook payload and `/internal/rag/index-batch` endpoint ensuring embedding-worker job enqueues with correct batch_type and authentication rules.</testIdea>
+      <testIdea criteriaId="AC9">State-machine test simulates queued→running→complete/failed transitions, confirming counts/timestamps persisted and duplicate hash submissions rejected.</testIdea>
+      <testIdea criteriaId="AC10">Observability test asserts OpenTelemetry spans, Prometheus metrics (embeddings_generated_total, embedding_latency_seconds, embedding_errors_total), and Slack webhook notification emitted at batch completion/failure.</testIdea></ideas>
+  </tests>
+</story-context>

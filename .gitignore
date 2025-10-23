@@ -1,0 +1,319 @@
+# Gradle
+.gradle/
+.gradle-cache/
+gradle/wrapper/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+gradlew
+gradlew.bat
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Environment Variables - CRITICAL: Never commit these!
+.env
+.env.local
+.env.*.local
+
+# Application Properties with secrets
+application-local.properties
+application-secrets.properties
+
+# Database credentials
+**/credentials.json
+**/secrets.yaml
+
+# Logs
+logs/
+*.log
+spring.log
+
+# Test Reports
+test-results/
+coverage/
+
+# Generated Documentation
+docs/database/schema-documentation.json
+docs/database/schema-documentation.md
+docs/database/table-validation.json
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.override.yml
+
+# Spring Boot
+application-*.properties
+!application.properties
+spring.log
+*.pid
+
+# Database
+*.db
+*.sqlite
+*.h2.db
+
+# Monitoring
+actuator/
+health/
+metrics/
+
+# =====================
+# NODE.JS / FRONTEND
+# =====================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vite
+.vite/
+.vite-cache/
+
+# =====================
+# PLAYWRIGHT TESTING
+# =====================
+
+# Test results
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/
+test-results.xml
+
+# Screenshots and videos
+/test-results/
+/playwright-report/
+*.png
+*.webm
+*.mp4
+
+# Test artifacts
+test-artifacts/
+coverage/
+nyc_output/
+
+# =====================
+# IDE SPECIFIC
+# =====================
+
+# IntelliJ IDEA (enhanced)
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# VS Code (enhanced)
+.vscode/
+*.code-workspace
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# =====================
+# OPERATING SYSTEM
+# =====================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =====================
+# DEVELOPMENT TOOLS
+# =====================
+
+# Redis dump
+dump.rdb
+
+# Supabase local
+.supabase/
+
+# n8n workflows
+.n8n/
+
+# BMAD workspace
+.bmad/
+.agents/
+.claude/
+.clinerules/
+.cursor/
+.gemini/
+.iflow/
+.qwen/
+.roomodes
+.serena/
+.windsurf/
+.github/
+.crush/
+.augment/
+bmad/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.backup
+*.orig
+
+# Editor backups
+*~
+.#*
+\#*#
+.*.swp
+.*.swo
+
+# =====================
+# SECURITY & SECRETS
+# =====================
+
+# Environment variables - CRITICAL: Never commit these!
+.env
+.env.local
+.env.*.local
+.venv/
+
+# Application secrets
+application-local.properties
+application-secrets.properties
+secrets.properties
+local.properties
+
+# Database credentials
+**/credentials.json
+**/secrets.yaml
+**/private-keys/
+**/ssl/
+
+# JWT tokens and API keys
+jwt/
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+
+# =====================
+# LOGS & MONITORING
+# =====================
+
+# Logs
+logs/
+*.log
+spring.log
+application.log
+access.log
+error.log
+
+# Test reports and coverage
+test-results/
+coverage/
+jacoco/
+surefire-reports/
+failsafe-reports/
+
+# Performance monitoring
+jfr/
+*.jfr
+heapdump.*
+*.hprof
+
+# =====================
+# GENERATED DOCUMENTATION
+# =====================
+
+CLAUDE.md
+AGENTS.md
+# Auto-generated docs
+docs/database/schema-documentation.json
+docs/database/schema-documentation.md
+docs/database/table-validation.json
+docs/api/generated/
+docs/auto-generated/

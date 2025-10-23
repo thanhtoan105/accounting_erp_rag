@@ -1,0 +1,109 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>Establish Read-Only ERP Database Access</title>
+    <status>Ready</status>
+    <generatedAt>2025-10-17</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-1.1.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a platform engineer enabling the Core RAG foundation</asA>
+    <iWant>to establish a secure, read-only Supabase PostgreSQL connection with observability and resilience guardrails</iWant>
+    <soThat>the RAG services can ingest accounting data reliably without violating compliance or availability commitments</soThat>
+    <tasks>
+- Provision secure read-only Supabase connection credentials and configure pooled datasource (min 2 / max 10) in `supabase-gateway`; implement exponential backoff retry policy and verify write attempts are rejected (AC1)
+  - Add connection pool configuration, read-only role usage, and retry logic to `supabase-gateway` module, including unit tests covering retry/backoff behavior (AC1) [Source: docs/tech-spec-epic-1.md#Services and Modules]
+  - Document connection setup steps, credential handling, and read-only enforcement in project docs (AC1)
+- Enumerate accessible ERP tables and generate schema documentation artifacts for >=60 target tables via automated script (AC2/AC3)
+  - Implement script/job to introspect Supabase schema, capture table/column metadata, and output docs under `docs/database/` with audit trail (AC2/AC3) [Source: docs/epics.md#E1-S1 ERP Database Access Setup and Validation]
+  - Validate access to critical tables (`invoices`, `payments`, `journal_entries`, etc.) and attach resulting documentation to repository (AC2)
+- Build health check endpoint `/internal/rag/db-health` exposing pool stats, replica status, and wiring telemetry to observability stack; simulate outages to verify alerts (AC3/AC4)
+  - Implement endpoint within backend monolith, including integration tests using Testcontainers to simulate connection failures and ensure retries/metrics behave as expected (AC3/AC4) [Source: docs/solution-architecture.md#Architecture Pattern Determination]
+  - Update monitoring configuration/runbooks to include new metrics and alert thresholds (AC4)
+- Testing: execute unit/integration tests covering read-only enforcement, retry/backoff, health endpoint, and schema documentation tasks per testing strategy (AC1-AC4)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. Read-only PostgreSQL connection to the ERP database is established using Supabase credentials with enforced read-only role; connection pooling configured with minimum 2 and maximum 10 connections, including exponential backoff retry logic [Source: docs/epics.md#E1-S1 ERP Database Access Setup and Validation; docs/tech-spec-epic-1.md#Services and Modules].
+2. All required ERP tables (>=60, including `invoices`, `payments`, `journal_entries`, `accounts`, `customers`, `vendors`, `bank_transactions`, `tax_declarations`) are reachable via the gateway and documented with schema metadata stored in project docs [Source: docs/epics.md#E1-S1 ERP Database Access Setup and Validation; docs/PRD.md#Description, Context and Goals].
+3. Automated schema documentation (tables, columns, relationships) is generated and committed to the repository; read replica availability is confirmed (or documented if unavailable) and health check endpoint `/internal/rag/db-health` returns pool status and replica indicator [Source: docs/epics.md#E1-S1 ERP Database Access Setup and Validation; docs/tech-spec-epic-1.md#Services and Modules].
+4. Health checks and resilience guardrails are implemented: connection retry logic verified under simulated outages, health endpoint integrated into observability stack, and telemetry captured for pool utilization aligned with architecture guidance [Source: docs/epics.md#E1-S1 ERP Database Access Setup and Validation; docs/solution-architecture.md#Epic-to-component mapping].
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics.md</path>
+        <title>accounting_erp_rag - Epic &amp; Story Breakdown</title>
+        <section>E1-S1: ERP Database Access Setup and Validation</section>
+        <snippet>Epic 1 story S1 mandates secure read-only PostgreSQL access, documentation of all accounting tables, connection pooling, health checks, and retry logic. The section highlights Circular 200 compliance considerations and requires load testing with 20 concurrent reads to validate the gateway.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification: Core RAG Pipeline and Infrastructure</title>
+        <section>Services and Modules</section>
+        <snippet>The technical specification assigns the shared supabase-gateway module to manage JDBC pools, enforce read-only roles, and expose the `/internal/rag/db-health` endpoint while feeding telemetry into the observability stack. It situates the gateway inside the Spring Boot monolith alongside retrieval controllers and async ingestion workers.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture – Accounting ERP RAG</title>
+        <section>Epic-to-component mapping</section>
+        <snippet>The solution architecture pairs Epic 1 with rag-platform and supabase-gateway modules and stresses keeping shared components under semantic versioning with contract tests. It reiterates that supabase-gateway owns JDBC connectors and pgvector adapters that this story must extend.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>accounting_erp_rag Product Requirements Document</title>
+        <section>Description, Context and Goals</section>
+        <snippet>The PRD frames the ERP foundation as compliant with Vietnam Circular 200, requiring multi-tenant RBAC, comprehensive audit logging, and bilingual financial insights. RAG integrations must preserve auditability and regulatory controls when exposing ERP data.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>apps/backend/src/main/java/com/erp/rag/supabase</path>
+        <kind>shared-module (planned)</kind>
+        <symbol>SupabaseGatewayConfiguration</symbol>
+        <lines>n/a</lines>
+        <reason>Per solution architecture, this package houses the supabase-gateway adapter responsible for JDBC pooling and read-only enforcement; implement the datasource, DAO wiring, and `/internal/rag/db-health` controller here.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <ecosystem name="java">
+        <package>Spring Boot (planned platform for rag-platform and shared modules) [Source: docs/solution-architecture.md#Architecture Decisions (Web Application)]</package>
+        <package>Spring Data JPA (data layer over Supabase PostgreSQL) [Source: docs/solution-architecture.md#Architecture Decisions (Web Application)]</package>
+      </ecosystem>
+      <ecosystem name="database">
+        <package>Supabase PostgreSQL with pgvector extension [Source: docs/tech-spec-epic-1.md#Services and Modules]</package>
+      </ecosystem>
+      <ecosystem name="observability">
+        <package>Prometheus/Grafana and OpenTelemetry for health metrics [Source: docs/tech-spec-epic-1.md#Services and Modules]</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- Implement the read-only datasource, pooling, and `/internal/rag/db-health` telemetry inside the shared supabase-gateway module to keep contracts consistent across rag-platform services [Source: docs/tech-spec-epic-1.md#Services and Modules].
+- Document >=60 ERP tables, relationships, and retention metadata to satisfy Circular 200 audit requirements while preventing write access to production data [Source: docs/epics.md#E1-S1 ERP Database Access Setup and Validation; docs/PRD.md#Description, Context and Goals].
+- Preserve shared-module stability by following semantic versioning and contract testing practices outlined for supabase-gateway and rag-platform slices [Source: docs/solution-architecture.md#Epic-to-component mapping].
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>/internal/rag/db-health</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /internal/rag/db-health -&gt; 200 { poolStatus, replicaAvailable, metrics }</signature>
+      <path>apps/backend/src/main/java/com/erp/rag/supabase/HealthController.java (planned)</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>Follow the Epic 1 test strategy: JUnit/Mockito for supabase-gateway services, Testcontainers for Supabase Postgres + pgvector verification, and performance/security suites (k6, Locust, static analysis) to validate latency, read-only enforcement, and compliance [Source: docs/tech-spec-epic-1.md#Test Strategy Summary].</standards>
+    <locations>apps/backend/src/test/java; apps/backend/src/integrationTest/java; tests/performance/k6</locations>
+    <ideas>
+- AC1: Use Testcontainers to attempt read/write operations with the Supabase read-only role, asserting pooling configuration and exponential backoff retries.
+- AC2/AC3: Automate schema introspection script tests that count >=60 tables and persist documentation artifacts to `docs/database/`.
+- AC3/AC4: Exercise `/internal/rag/db-health` via integration tests, simulating replica outages and verifying metrics emitted to Prometheus exporters.
+    </ideas>
+  </tests>
+</story-context>

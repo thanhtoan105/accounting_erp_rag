@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <include file="changelog/000-create-accounting-schema.xml" relativeToChangelogFile="true"/>
+    <include file="changelog/001-pgvector-extension.xml" relativeToChangelogFile="true"/>
+    <include file="changelog/002-pii-masking-tables.xml" relativeToChangelogFile="true"/>
+    <include file="changelog/003-vector-documents-table.xml" relativeToChangelogFile="true"/>
+    <include file="changelog/004-accounts-payable-tables.xml" relativeToChangelogFile="true"/>
+    <include file="changelog/005-embedding-batches-table.xml" relativeToChangelogFile="true"/>
+    <include file="changelog/006-rag-query-tables.xml" relativeToChangelogFile="true"/>
+
+</databaseChangeLog>

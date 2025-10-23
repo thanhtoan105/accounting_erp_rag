@@ -1,0 +1,91 @@
+llm:
+  # Provider Configuration
+  primary:
+    provider: ${LLM_PRIMARY_PROVIDER:openai}
+    timeout: ${LLM_TIMEOUT_PRIMARY_MS:2000}
+
+  fallback:
+    provider: ${LLM_FALLBACK_PROVIDER:anthropic}
+    timeout: ${LLM_TIMEOUT_FALLBACK_MS:2500}
+    enabled: true
+
+  # OpenAI Configuration
+  openai:
+    api-key: ${OPENAI_API_KEY}
+    org-id: ${OPENAI_ORG_ID:}
+    model: ${OPENAI_MODEL:gpt-4-turbo-preview}
+    base-url: https://api.openai.com/v1
+    max-tokens: ${LLM_MAX_TOKENS_PER_REQUEST:1500}
+    temperature: 0.1 # Low temperature for factual accounting queries
+
+  # Azure OpenAI Configuration (Fallback - same GPT-4 model)
+  azure-openai:
+    endpoint: ${AZURE_OPENAI_ENDPOINT:}
+    api-key: ${AZURE_OPENAI_API_KEY:}
+    deployment: ${AZURE_OPENAI_DEPLOYMENT:}
+    api-version: ${AZURE_OPENAI_API_VERSION:2024-02-15-preview}
+    max-tokens: ${LLM_MAX_TOKENS_PER_REQUEST:1500}
+    temperature: 0.1 # Same as OpenAI for consistency
+
+  # Circuit Breaker Configuration (Resilience4j)
+  circuit-breaker:
+    failure-rate-threshold: 50 # 50% failures trigger open circuit
+    slow-call-rate-threshold: 50 # 50% slow calls trigger open circuit
+    slow-call-duration-threshold: ${LLM_TIMEOUT_PRIMARY_MS:2000}
+    sliding-window-size: 10 # Last 10 calls
+    minimum-number-of-calls: 5 # Need 5 calls before evaluating
+    wait-duration-in-open-state: ${LLM_CIRCUIT_BREAKER_RESET_TIMEOUT_SEC:30}s
+    permitted-number-of-calls-in-half-open-state: 3
+
+  # Rate Limiting
+  rate-limiter:
+    limit-for-period: ${LLM_DAILY_REQUEST_LIMIT:100}
+    limit-refresh-period: 86400s # 24 hours
+    timeout-duration: 1s
+
+  # Budget Control
+  budget:
+    max-cost-per-day-usd: 5.00
+    alert-threshold-usd: ${LLM_BUDGET_ALERT_THRESHOLD_USD:4.50}
+
+  # Caching
+  cache:
+    enabled: ${LLM_ENABLE_CACHING:true}
+    ttl: 3600 # 1 hour cache for identical queries
+    max-size: 1000 # Max 1000 cached responses
+
+  # Logging
+  logging:
+    enabled: ${LLM_LOG_REQUESTS:true}
+    log-request-body: true
+    log-response-body: true
+    log-latency: true
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+    instances:
+      llmPrimary:
+        baseConfig: default
+      llmFallback:
+        baseConfig: default
+
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 2s
+    instances:
+      llmPrimary:
+        timeoutDuration: ${LLM_TIMEOUT_PRIMARY_MS:2000}ms
+      llmFallback:
+        timeoutDuration: ${LLM_TIMEOUT_FALLBACK_MS:2500}ms

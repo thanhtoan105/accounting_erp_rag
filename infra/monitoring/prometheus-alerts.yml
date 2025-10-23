@@ -1,0 +1,178 @@
+# Prometheus Alert Rules for RAG Query Pipeline (Story 1.5)
+# Deploy to Prometheus server monitoring the accounting ERP application
+
+groups:
+  - name: rag_query_pipeline_alerts
+    interval: 30s
+    rules:
+      # Recording rule for P95 retrieval latency
+      - record: rag:retrieval_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95, 
+            sum by (le, stage, method) (
+              rate(rag_stage_latency_seconds_bucket{stage="retrieval"}[5m])
+            )
+          )
+      
+      # Recording rule for P95 total pipeline latency
+      - record: rag:total_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95, 
+            sum by (le, language) (
+              rate(rag_stage_latency_seconds_bucket{stage="total"}[5m])
+            )
+          )
+      
+      # Alert: High error rate (>5% in 5 minutes)
+      - alert: HighRAGQueryErrorRate
+        expr: |
+          (
+            sum(rate(rag_query_total{status="failed"}[5m]))
+            /
+            sum(rate(rag_query_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: rag-query-pipeline
+          team: platform
+        annotations:
+          summary: "High RAG query error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 5%)"
+          remediation: |
+            1. Check vector database health: /internal/rag/db-health
+            2. Verify embedding API status (Azure OpenAI)
+            3. Review recent query patterns for malformed input
+            4. Check rag_queries table for error_state details
+            5. Verify keyword search fallback is functioning
+          runbook: "https://docs.internal/runbooks/rag-high-error-rate"
+      
+      # Alert: P95 retrieval latency exceeds target (>1.5s)
+      - alert: HighRAGRetrievalLatency
+        expr: rag:retrieval_latency_p95:5m > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          component: rag-query-pipeline
+          team: platform
+        annotations:
+          summary: "RAG retrieval P95 latency exceeds 1.5s target"
+          description: "P95 retrieval latency is {{ $value }}s (target: ≤1.5s)"
+          remediation: |
+            1. Check HNSW index health and rebuild if needed
+            2. Verify connection pool utilization (HikariCP)
+            3. Review query patterns for inefficient filters
+            4. Check if dataset size has grown beyond optimization
+            5. Consider index parameter tuning (m, ef_construction)
+          runbook: "https://docs.internal/runbooks/rag-high-latency"
+      
+      # Alert: P95 total pipeline latency exceeds budget (>2s)
+      - alert: HighRAGTotalLatency
+        expr: rag:total_latency_p95:5m > 2.0
+        for: 10m
+        labels:
+          severity: info
+          component: rag-query-pipeline
+          team: platform
+        annotations:
+          summary: "RAG total pipeline P95 latency exceeds 2s budget"
+          description: "P95 total latency is {{ $value }}s (budget: ≤2.0s)"
+          remediation: |
+            1. Break down latency by stage (embedding, retrieval, pruning)
+            2. Check if embedding cache hit rate has dropped
+            3. Verify async processing is not blocking
+            4. Review context window pruning efficiency
+      
+      # Alert: Embedding API errors increasing
+      - alert: HighEmbeddingAPIErrorRate
+        expr: |
+          (
+            sum(rate(rag_retrieval_errors_total{stage="embedding"}[5m]))
+            /
+            sum(rate(rag_query_total[5m]))
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          component: rag-query-pipeline
+          team: platform
+        annotations:
+          summary: "High embedding API error rate (>10%)"
+          description: "Embedding errors are {{ $value | humanizePercentage }} of total queries"
+          remediation: |
+            1. Check Azure OpenAI API status and quota
+            2. Verify API key is valid and not rate-limited
+            3. Review retry logic effectiveness
+            4. Check if keyword search fallback is activating
+            5. Monitor fallback success rate
+      
+      # Alert: All retrieval methods failing
+      - alert: AllRetrievalMethodsFailing
+        expr: |
+          sum(rate(rag_query_total{status="failed"}[5m])) > 0
+          and
+          (
+            sum(rate(rag_retrieval_errors_total{stage="embedding"}[5m]))
+            +
+            sum(rate(rag_retrieval_errors_total{stage="retrieval"}[5m]))
+          ) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: rag-query-pipeline
+          team: platform
+          page: true
+        annotations:
+          summary: "CRITICAL: All RAG retrieval methods failing"
+          description: "Both vector search and keyword fallback are failing"
+          remediation: |
+            IMMEDIATE ACTION REQUIRED:
+            1. Check database connectivity (Supabase PostgreSQL)
+            2. Verify pgvector extension is loaded
+            3. Check for lock conflicts or long-running queries
+            4. Review database error logs
+            5. Consider rolling back recent schema changes
+            6. Page on-call engineer if issue persists >5 minutes
+          runbook: "https://docs.internal/runbooks/rag-total-failure"
+      
+      # Alert: Recall@10 below target (informational)
+      - alert: LowRecallAt10
+        expr: |
+          avg(rag_queries_recall_at_10) < 0.80
+        for: 30m
+        labels:
+          severity: info
+          component: rag-query-pipeline
+          team: data-science
+        annotations:
+          summary: "RAG recall@10 below 0.80 target"
+          description: "Average recall@10 is {{ $value }} (target: ≥0.90)"
+          remediation: |
+            1. Review recent embedding model changes
+            2. Check if document embeddings need refresh
+            3. Validate test queries and ground truth labels
+            4. Consider retraining or model tuning (Story 2.9)
+      
+      # Informational: High graceful degradation rate
+      - alert: HighGracefulDegradationRate
+        expr: |
+          (
+            sum(rate(rag_query_total{status="success_with_fallback"}[15m]))
+            /
+            sum(rate(rag_query_total[15m]))
+          ) > 0.20
+        for: 15m
+        labels:
+          severity: info
+          component: rag-query-pipeline
+          team: platform
+        annotations:
+          summary: "High graceful degradation rate (>20%)"
+          description: "{{ $value | humanizePercentage }} of queries using keyword fallback"
+          remediation: |
+            This is informational - keyword fallback is working as designed.
+            However, investigate if embedding API is experiencing issues:
+            1. Check Azure OpenAI service health
+            2. Review quota and rate limits
+            3. Consider caching optimization
+            4. Monitor if this rate remains stable or trending up
